@@ -91,7 +91,7 @@ export default function AuthScreen() {
       await setDoc(doc(db, "users", user.uid), {
         username: username,
         email: email,
-        createdAt: new Date(),
+        dateAdded: new Date(),
         role: 'user', // Default role
         uid: user.uid
       });
