@@ -9,7 +9,7 @@ export default function HomeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.text, { color: colors.textDark }]}>Welcome to ReadCount!</Text>
+      <Text style={[styles.text, { color: colors.textDark }]}>Library Coming Soon!</Text>
     </View>
   );
 }
