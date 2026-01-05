@@ -1,12 +1,12 @@
+import { useRouter } from 'expo-router';
+import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { COLORS, darkColors } from '../constants/colors';
-import { useTheme } from './context/ThemeContext';
-import { auth, db } from '../firebaseConfig';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
-import { collection, query, where, getDocs, setDoc, doc } from 'firebase/firestore';
 import Toast from 'react-native-toast-message';
+import { COLORS, darkColors } from '../constants/colors';
+import { auth, db } from '../firebaseConfig';
+import { useTheme } from './context/ThemeContext';
 
 type AuthMode = 'login' | 'signup' | 'forgot';
 
@@ -102,7 +102,7 @@ export default function AuthScreen() {
         text2: 'Welcome to ReadCount!',
       });
 
-      router.replace('/(tabs)/index');
+      router.replace('/(tabs)/library');
 
     } catch (error: any) {
       console.error('Signup Error:', error);
@@ -148,7 +148,7 @@ export default function AuthScreen() {
         text2: 'Logged in successfully.',
       });
       
-      router.replace('/(tabs)/index');
+      router.replace('/(tabs)/library');
     } catch (error: any) {
       console.error('Login Error:', error);
       let errorMessage = "Login failed. Please try again.";
