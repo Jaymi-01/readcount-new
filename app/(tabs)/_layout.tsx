@@ -1,9 +1,9 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
-import { useTheme } from '../context/ThemeContext';
 import { COLORS, darkColors } from '../../constants/colors';
-import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../context/ThemeContext';
 
 export default function TabLayout() {
   const { theme } = useTheme();
@@ -27,10 +27,24 @@ export default function TabLayout() {
         headerShown: false,
       }}>
       <Tabs.Screen
-        name="index"
+        name="library"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <Ionicons size={28} name="home" color={color} />,
+          title: 'Library',
+          tabBarIcon: ({ color }) => <Ionicons size={28} name="book" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="community"
+        options={{
+          title: 'Community',
+          tabBarIcon: ({ color }) => <Ionicons size={28} name="people" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color }) => <Ionicons size={28} name="settings" color={color} />,
         }}
       />
     </Tabs>
