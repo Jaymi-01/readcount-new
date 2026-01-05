@@ -1,19 +1,13 @@
 {
   "expo": {
     "name": "Read Count",
-    "slug": "readcount",
+    "slug": "readcount-new",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "readcount",
+    "scheme": "readcountnew",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "updates": {
-      "url": "https://u.expo.dev/e94b2d12-68f9-46d8-9a5f-c7e5c1b61a76"
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
     "ios": {
       "supportsTablet": true
     },
@@ -26,7 +20,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.jaymi.readcount"
+      "package": "com.jaymi.readcountnew"
     },
     "web": {
       "output": "static",
@@ -45,9 +39,7 @@
             "backgroundColor": "#000000"
           }
         }
-      ],
-      "expo-font",
-      "expo-web-browser"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -56,7 +48,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "e94b2d12-68f9-46d8-9a5f-c7e5c1b61a76"
+        "projectId": "0b6f0b91-e437-4571-902d-808344c56c11"
       }
     }
   }
