@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, 
   ActivityIndicator, SafeAreaView, Platform, StatusBar 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, Timestamp, orderBy } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
@@ -33,6 +34,17 @@ export default function LibraryScreen() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<BookStatus>('reading');
+  const [displayName, setDisplayName] = useState(user?.displayName || 'Reader');
+
+  // --- EFFECT: REFRESH USER NAME ON FOCUS ---
+  useFocusEffect(
+    useCallback(() => {
+      if (auth.currentUser) {
+        // Force reload user metadata if needed, but usually currentUser updates locally
+        setDisplayName(auth.currentUser.displayName || 'Reader');
+      }
+    }, [])
+  );
   
   // Modal State
   const [isModalVisible, setModalVisible] = useState(false);
@@ -271,7 +283,7 @@ export default function LibraryScreen() {
       <View style={styles.header}>
         <Text style={[styles.greeting, { color: colors.textLight }]}>Hi,</Text>
         <Text style={[styles.username, { color: colors.textDark }]}>
-          {user?.displayName || 'Reader'}
+          {displayName}
         </Text>
       </View>
 
