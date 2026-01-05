@@ -21,7 +21,7 @@ interface Book {
   rating?: number; // 1-5
   review?: string; // Legacy support ("good", "bad")
   userId: string;
-  createdAt: any;
+  dateAdded: any;
 }
 
 export default function LibraryScreen() {
@@ -60,10 +60,10 @@ export default function LibraryScreen() {
       snapshot.forEach((doc) => {
         booksData.push({ id: doc.id, ...doc.data() } as Book);
       });
-      // Client-side sort by createdAt descending (newest first)
+      // Client-side sort by dateAdded descending (newest first)
       booksData.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.toMillis?.() || 0;
+        const timeA = a.dateAdded?.toMillis?.() || (a.dateAdded?.seconds ? a.dateAdded.seconds * 1000 : 0);
+        const timeB = b.dateAdded?.toMillis?.() || (b.dateAdded?.seconds ? b.dateAdded.seconds * 1000 : 0);
         return timeB - timeA;
       });
       setBooks(booksData);
@@ -128,7 +128,7 @@ export default function LibraryScreen() {
           author,
           status,
           rating,
-          createdAt: Timestamp.now(),
+          dateAdded: Timestamp.now(),
         });
         Toast.show({ type: 'success', text1: 'Added', text2: 'Book added to your library.' });
       }
@@ -186,7 +186,39 @@ export default function LibraryScreen() {
     }
   };
 
-  const filteredBooks = books.filter(b => b.status === activeTab);
+  const [filterType, setFilterType] = useState<'author' | 'year'>('author');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+
+  // --- FILTER LOGIC ---
+  const filteredBooks = books.filter(b => {
+    // 1. Tab Status Filter
+    if (b.status !== activeTab) return false;
+
+    if (!searchQuery) return true;
+
+    const queryLower = searchQuery.toLowerCase();
+
+    // 2. Author Filter
+    if (filterType === 'author') {
+      return b.author.toLowerCase().includes(queryLower);
+    }
+
+    // 3. Year Filter
+    if (filterType === 'year') {
+      let year = '';
+      if (b.dateAdded?.toDate) {
+        year = b.dateAdded.toDate().getFullYear().toString();
+      } else if (b.dateAdded?.seconds) {
+        year = new Date(b.dateAdded.seconds * 1000).getFullYear().toString();
+      } else if (b.dateAdded) {
+         year = new Date(b.dateAdded).getFullYear().toString();
+      }
+      return year.includes(queryLower);
+    }
+
+    return true;
+  });
 
   const renderBookItem = ({ item }: { item: Book }) => {
     // Migration display logic
@@ -194,11 +226,32 @@ export default function LibraryScreen() {
     if (!displayRating && item.review === 'good') displayRating = 5;
     if (!displayRating && item.review === 'bad') displayRating = 1;
 
+    // Date Formatting
+    let dateAddedStr = 'Unknown Date';
+    if (item.dateAdded) {
+        try {
+            if (typeof item.dateAdded.toDate === 'function') {
+                dateAddedStr = item.dateAdded.toDate().toLocaleDateString();
+            } else if (item.dateAdded.seconds) {
+                dateAddedStr = new Date(item.dateAdded.seconds * 1000).toLocaleDateString();
+            } else {
+                const d = new Date(item.dateAdded);
+                if (!isNaN(d.getTime())) {
+                    dateAddedStr = d.toLocaleDateString();
+                }
+            }
+        } catch (e) {
+            console.log("Date parsing error", e);
+        }
+    }
+
     return (
       <View style={[styles.bookCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.bookInfo}>
           <Text style={[styles.bookTitle, { color: colors.textDark }]}>{item.title}</Text>
           <Text style={[styles.bookAuthor, { color: colors.textLight }]}>{item.author}</Text>
+          <Text style={[styles.bookDate, { color: colors.textLight }]}>Added: {dateAddedStr}</Text>
+          
           {item.status === 'read' && (
             <View style={styles.ratingContainer}>
               {renderStars(displayRating)}
@@ -229,23 +282,79 @@ export default function LibraryScreen() {
 
       {/* TABS */}
       <View style={styles.tabContainer}>
-        {(['read', 'reading', 'toread'] as BookStatus[]).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[
-              styles.tab,
-              activeTab === tab && { backgroundColor: getStatusColor(tab) }
-            ]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={[
-              styles.tabText,
-              { color: activeTab === tab ? '#FFF' : colors.textLight }
-            ]}>
-              {tab === 'toread' ? 'To Read' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {(['read', 'reading', 'toread'] as BookStatus[]).map((tab) => {
+          const count = books.filter(b => b.status === tab).length;
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={[
+                styles.tab,
+                activeTab === tab && { backgroundColor: getStatusColor(tab) }
+              ]}
+              onPress={() => setActiveTab(tab)}
+            >
+              <Text style={[
+                styles.tabText,
+                { color: activeTab === tab ? '#FFF' : colors.textLight }
+              ]}>
+                {tab === 'toread' ? 'To Read' : tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* SEARCH / FILTER BAR */}
+      <View style={[styles.filterBar, { zIndex: 10 }]}> 
+        {/* Dropdown Trigger */}
+        <View style={{ position: 'relative' }}>
+            <TouchableOpacity 
+              style={[styles.dropdownTrigger, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => setShowFilterMenu(!showFilterMenu)}
+            >
+              <Text style={{ color: colors.textDark, marginRight: 4 }}>
+                {filterType === 'author' ? 'Author' : 'Year'}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={colors.textLight} />
+            </TouchableOpacity>
+
+            {/* Dropdown Menu */}
+            {showFilterMenu && (
+              <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity 
+                  style={styles.dropdownItem} 
+                  onPress={() => { setFilterType('author'); setShowFilterMenu(false); }}
+                >
+                  <Text style={{ color: colors.textDark }}>Author</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.dropdownItem} 
+                  onPress={() => { setFilterType('year'); setShowFilterMenu(false); }}
+                >
+                  <Text style={{ color: colors.textDark }}>Year</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+        </View>
+
+        {/* Search Input */}
+        <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TextInput
+            style={[styles.searchInput, { color: colors.textDark }]}
+            placeholder={`Search by ${filterType}...`}
+            placeholderTextColor={colors.textLight}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            keyboardType={filterType === 'year' ? 'numeric' : 'default'}
+          />
+          {searchQuery ? (
+             <TouchableOpacity onPress={() => setSearchQuery('')}>
+               <Ionicons name="close-circle" size={18} color={colors.textLight} />
+             </TouchableOpacity>
+          ) : (
+             <Ionicons name="search" size={18} color={colors.textLight} />
+          )}
+        </View>
       </View>
 
       {/* CONTENT */}
@@ -396,6 +505,64 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
   
+  bookDate: {
+    fontSize: 12,
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  
+  // Filter Bar
+  filterBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 12,
+    alignItems: 'center',
+  },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 44,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    minWidth: 100,
+    justifyContent: 'space-between',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    width: 120,
+    borderWidth: 1,
+    borderRadius: 8,
+    zIndex: 100,
+    padding: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
+  searchContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    marginRight: 8,
+  },
+
   // Book Card
   bookCard: {
     flexDirection: 'row',
