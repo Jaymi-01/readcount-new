@@ -6,19 +6,19 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal",
-      "channel": "development"
+      "distribution": "internal"
+      // "channel" removed here
     },
     "preview": {
-      "distribution": "internal",
-      "channel": "preview"
+      "distribution": "internal"
+      // "channel" removed here <-- THIS WAS THE ERROR
     },
     "production": {
       "autoIncrement": true,
-      "channel": "production",
       "android": {
-        "buildType": "apk" 
+        "buildType": "apk"
       }
+      // "channel" removed here
     }
   },
   "submit": {
