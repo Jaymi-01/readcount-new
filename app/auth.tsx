@@ -102,7 +102,7 @@ export default function AuthScreen() {
         text2: 'Welcome to ReadCount!',
       });
 
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/index');
 
     } catch (error: any) {
       console.error('Signup Error:', error);
@@ -148,7 +148,7 @@ export default function AuthScreen() {
         text2: 'Logged in successfully.',
       });
       
-      router.replace('/(tabs)');
+      router.replace('/(tabs)/index');
     } catch (error: any) {
       console.error('Login Error:', error);
       let errorMessage = "Login failed. Please try again.";
