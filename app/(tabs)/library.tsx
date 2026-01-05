@@ -191,20 +191,14 @@ export default function LibraryScreen() {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   // --- FILTER LOGIC ---
-  const filteredBooks = books.filter(b => {
-    // 1. Tab Status Filter
-    if (b.status !== activeTab) return false;
-
+  const matchesFilter = (b: Book) => {
     if (!searchQuery) return true;
-
     const queryLower = searchQuery.toLowerCase();
 
-    // 2. Author Filter
     if (filterType === 'author') {
       return b.author.toLowerCase().includes(queryLower);
     }
 
-    // 3. Year Filter
     if (filterType === 'year') {
       let year = '';
       if (b.dateAdded?.toDate) {
@@ -216,9 +210,10 @@ export default function LibraryScreen() {
       }
       return year.includes(queryLower);
     }
-
     return true;
-  });
+  };
+
+  const filteredBooks = books.filter(b => b.status === activeTab && matchesFilter(b));
 
   const renderBookItem = ({ item }: { item: Book }) => {
     // Migration display logic
@@ -283,7 +278,7 @@ export default function LibraryScreen() {
       {/* TABS */}
       <View style={styles.tabContainer}>
         {(['read', 'reading', 'toread'] as BookStatus[]).map((tab) => {
-          const count = books.filter(b => b.status === tab).length;
+          const count = books.filter(b => b.status === tab && matchesFilter(b)).length;
           return (
             <TouchableOpacity
               key={tab}
