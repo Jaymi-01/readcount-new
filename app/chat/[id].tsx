@@ -397,12 +397,11 @@ export default function ChatScreen() {
           </Text>
         </View>
       ) : (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-          style={[styles.inputContainer, { backgroundColor: colors.card, borderTopColor: colors.border }]}
-        >
-          <TouchableOpacity 
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={100}
+                style={[styles.inputContainer, { backgroundColor: colors.card, borderTopColor: colors.border }]}
+              >          <TouchableOpacity 
             onPress={pickImage} 
             disabled={uploading}
             style={styles.attachButton}

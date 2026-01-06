@@ -16,8 +16,9 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
-import { collection, getDocs, onSnapshot, query, where, doc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
+import Toast from 'react-native-toast-message';
 
 interface User {
   id: string;
@@ -53,6 +54,7 @@ export default function DMScreen() {
 
       snapshot.forEach((doc) => {
         const data = doc.data();
+        // Exclude current user
         if (doc.id !== currentUserId) {
           usersList.push({
             id: doc.id,
@@ -74,11 +76,43 @@ export default function DMScreen() {
     return () => unsubscribe();
   }, []);
 
-  // Removed manual fetchUsers and onRefresh as it's now real-time
+  // Listen for unread counts
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Listen to all chats where the current user is a participant
+    const chatsRef = collection(db, 'chats');
+    const q = query(chatsRef, where('participants', 'array-contains', currentUser.uid));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const counts: { [userId: string]: number } = {};
+      
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const participants = data.participants as string[];
+        
+        // Find the OTHER user in the chat
+        const otherUserId = participants.find(uid => uid !== currentUser.uid);
+        
+        if (otherUserId && data.unreadCounts) {
+           // Get the unread count for the CURRENT user
+           const myUnreadCount = data.unreadCounts[currentUser.uid] || 0;
+           if (myUnreadCount > 0) {
+             counts[otherUserId] = myUnreadCount;
+           }
+        }
+      });
+      setUnreadCounts(counts);
+    }, (error) => {
+      console.error("Error listening to unread counts:", error);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
   const onRefresh = useCallback(() => {
-    // Optional: Could keep this to force a re-connect if needed, 
-    // but onSnapshot handles updates automatically.
     setRefreshing(true);
+    // Since onSnapshot handles updates, we just fake a short delay for UX
     setTimeout(() => setRefreshing(false), 1000);
   }, []);
 
@@ -96,19 +130,30 @@ export default function DMScreen() {
           style: user.isBanned ? "default" : "destructive",
           onPress: async () => {
             try {
-              await updateDoc(doc(db, 'users', user.id), {
+              const updates: any = {
                 isBanned: !user.isBanned
+              };
+              
+              // Reset risk (reportCount) to 0 if we are unbanning
+              if (action === "Unban") {
+                updates.reportCount = 0;
+              }
+
+              await updateDoc(doc(db, 'users', user.id), updates);
+              
+              Toast.show({
+                type: 'success',
+                text1: 'Success',
+                text2: `User has been ${action.toLowerCase()}ned.`
               });
               
-              // Update local state
-              setUsers(prev => prev.map(u => 
-                u.id === user.id ? { ...u, isBanned: !u.isBanned } : u
-              ));
-              
-              Alert.alert("Success", `User has been ${action.toLowerCase()}ned.`);
             } catch (error) {
               console.error("Ban error:", error);
-              Alert.alert("Error", "Failed to update user status.");
+              Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: 'Failed to update user status.'
+              });
             }
           }
         }
@@ -159,9 +204,15 @@ export default function DMScreen() {
           <View style={{ marginTop: 5, alignItems: 'center' }}>
             {item.isBanned ? (
               <Text style={{ color: colors.danger, fontWeight: 'bold', fontSize: 10 }}>BANNED</Text>
-            ) : isHighRisk ? (
-              <Text style={{ color: colors.secondary, fontWeight: 'bold', fontSize: 10 }}>RISK ({item.reportCount})</Text>
-            ) : null}
+            ) : (
+              <Text style={{ 
+                color: isHighRisk ? colors.secondary : colors.textLight, 
+                fontWeight: isHighRisk ? 'bold' : 'normal', 
+                fontSize: 10 
+              }}>
+                Reports: {item.reportCount || 0}
+              </Text>
+            )}
           </View>
         )}
       </TouchableOpacity>
@@ -313,4 +364,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
