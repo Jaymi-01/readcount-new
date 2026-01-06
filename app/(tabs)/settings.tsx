@@ -67,7 +67,9 @@ export default function SettingsScreen() {
     }
 
     const daysSinceChange = calculateDaysSinceLastChange();
-    if (daysSinceChange < 30) {
+    const isVip = user.email === 'millerjoel7597@gmail.com';
+    
+    if (daysSinceChange < 30 && !isVip) {
       Toast.show({ 
         type: 'error', 
         text1: 'Cooldown Active', 
