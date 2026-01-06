@@ -11,7 +11,8 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Image,
-  Alert
+  Alert,
+  Modal
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,6 +33,8 @@ import {
 } from 'firebase/firestore';
 // Removed Firebase Storage imports
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 import { auth, db } from '../../firebaseConfig';
 
 interface Message {
@@ -57,6 +60,11 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  
+  // Image Viewer State
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+
   const flatListRef = useRef<FlatList>(null);
 
   // Generate a consistent chat ID based on user IDs
@@ -147,6 +155,51 @@ export default function ChatScreen() {
     }
   };
 
+  const saveImageToGallery = async () => {
+    if (!selectedImage) return;
+    setDownloading(true);
+
+    try {
+      // 1. Request Permissions
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission Denied", "Need permission to save images.");
+        setDownloading(false);
+        return;
+      }
+
+      // 2. Write Base64 to temporary file
+      // Casting to any to avoid TS errors on constants that are definitely available at runtime
+      const FS: any = FileSystem;
+      const fileDir = FS.documentDirectory || FS.cacheDirectory;
+      if (!fileDir) {
+        throw new Error("Storage directory not available");
+      }
+      
+      const filename = fileDir + `photo_${Date.now()}.jpg`;
+      // Extract base64 data only (remove "data:image/jpeg;base64,")
+      const base64Data = selectedImage.split(',')[1];
+      
+      await FS.writeAsStringAsync(filename, base64Data, {
+        encoding: FS.EncodingType.Base64,
+      });
+
+      // 3. Save to Gallery
+      await MediaLibrary.saveToLibraryAsync(filename);
+      
+      Alert.alert("Saved", "Image saved to gallery!");
+
+      // 4. Cleanup
+      await FS.deleteAsync(filename, { idempotent: true });
+
+    } catch (error: any) {
+      console.error("Download error:", error);
+      Alert.alert("Error", "Failed to save image.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const sendMessage = async (imageUrl?: string) => {
     if ((inputText.trim().length === 0 && !imageUrl) || !currentUser) return;
     
@@ -210,11 +263,13 @@ export default function ChatScreen() {
           isMe ? styles.myMessageBubble : styles.theirMessageBubble
         ]}>
           {item.imageUrl && (
-            <Image 
-              source={{ uri: item.imageUrl }} 
-              style={styles.messageImage} 
-              resizeMode="contain"
-            />
+            <TouchableOpacity onPress={() => setSelectedImage(item.imageUrl!)}>
+              <Image 
+                source={{ uri: item.imageUrl }} 
+                style={styles.messageImage} 
+                resizeMode="contain"
+              />
+            </TouchableOpacity>
           )}
           {item.text ? (
             <Text style={[
@@ -297,6 +352,44 @@ export default function ChatScreen() {
           <Ionicons name="send" size={20} color={colors.white} />
         </TouchableOpacity>
       </KeyboardAvoidingView>
+
+      {/* Full Screen Image Modal */}
+      <Modal
+        visible={!!selectedImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedImage(null)}
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton} 
+            onPress={() => setSelectedImage(null)}
+          >
+            <Ionicons name="close" size={30} color="white" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.downloadButton} 
+            onPress={saveImageToGallery}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Ionicons name="download-outline" size={30} color="white" />
+            )}
+          </TouchableOpacity>
+
+          {selectedImage && (
+            <Image 
+              source={{ uri: selectedImage }} 
+              style={styles.fullScreenImage} 
+              resizeMode="contain"
+            />
+          )}
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -370,5 +463,31 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'black',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10,
+    padding: 10,
+  },
+  downloadButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
   },
 });
