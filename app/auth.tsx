@@ -20,38 +20,19 @@ export default function AuthScreen() {
   const [submitted, setSubmitted] = useState(false);
 
   // Form State
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  // -------------------------------------------------------------------------
-  // VALIDATION HELPERS
-  // -------------------------------------------------------------------------
-  const checkUsernameUnique = async (usernameToCheck: string) => {
-    const q = query(collection(db, "users"), where("username", "==", usernameToCheck));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.empty;
-  };
 
   // -------------------------------------------------------------------------
   // SIGNUP LOGIC
   // -------------------------------------------------------------------------
   const handleSignup = async () => {
     // 1. Basic Input Validation
-    if (!username || !email || !password) {
+    if (!email || !password) {
       Toast.show({
         type: 'error',
         text1: 'Missing Fields',
         text2: 'Please fill in all fields.',
-      });
-      return;
-    }
-
-    if (username.length < 3) {
-      Toast.show({
-        type: 'error',
-        text1: 'Invalid Username',
-        text2: 'Username must be at least 3 characters long.',
       });
       return;
     }
@@ -68,33 +49,27 @@ export default function AuthScreen() {
     setLoading(true);
 
     try {
-      // 2. Check Username Uniqueness
-      const isUnique = await checkUsernameUnique(username);
-      if (!isUnique) {
-        Toast.show({
-          type: 'error',
-          text1: 'Username Taken',
-          text2: 'This username is already in use. Please choose another.',
-        });
-        setLoading(false);
-        return;
-      }
-
-      // 3. Create Auth User
+      // 2. Create Auth User
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
-      // 4. Update Profile
-      await updateProfile(user, { displayName: username });
+      try {
+        // 3. Update Profile with Default Name
+        await updateProfile(user, { displayName: "Reader" });
 
-      // 5. Create User Document in Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        username: username,
-        email: email,
-        dateAdded: new Date(),
-        role: 'user', // Default role
-        uid: user.uid
-      });
+        // 4. Create User Document in Firestore
+        await setDoc(doc(db, "users", user.uid), {
+          email: email,
+          username: "Reader", // Default username
+          dateAdded: new Date(),
+          role: 'user', 
+          uid: user.uid
+        });
+      } catch (firestoreError) {
+        console.error("Firestore creation failed, rolling back auth:", firestoreError);
+        try { await user.delete(); } catch (e) {} 
+        throw new Error("Failed to create user profile. Please try again.");
+      }
 
       Toast.show({
         type: 'success',
@@ -212,18 +187,6 @@ export default function AuthScreen() {
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.textDark }]}>Create Account</Text>
             <Text style={[styles.subtitle, { color: colors.textLight }]}>Sign up to get started</Text>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.textDark }]}>Username</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.card, color: colors.textDark, borderColor: colors.border }]}
-              placeholder="johndoe"
-              placeholderTextColor={colors.textLight}
-              value={username}
-              onChangeText={setUsername}
-              autoCapitalize="none"
-            />
           </View>
 
           <View style={styles.inputGroup}>
