@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 // @ts-ignore
 import { initializeAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+// import { getStorage } from "firebase/storage";
 // CHANGE 2: Import AsyncStorage
 
 const firebaseConfig = {
@@ -22,5 +23,6 @@ export const auth = initializeAuth(app, {
 });
 
 export const db = getFirestore(app);
+// export const storage = getStorage(app);
 
 export default app;
