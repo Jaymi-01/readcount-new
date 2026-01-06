@@ -9,13 +9,14 @@ import {
   Image,
   SafeAreaView,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
-import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 
 interface User {
@@ -23,7 +24,11 @@ interface User {
   name: string;
   avatar: string;
   email: string;
+  reportCount?: number;
+  isBanned?: boolean;
 }
+
+const ADMIN_EMAIL = 'millerjoel7597@gmail.com';
 
 export default function DMScreen() {
   const { theme } = useTheme();
@@ -34,82 +39,82 @@ export default function DMScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<{ [userId: string]: number }>({});
+  
+  const currentUser = auth.currentUser;
+  const isAdmin = currentUser?.email === ADMIN_EMAIL;
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  // Listen for unread counts
-  useEffect(() => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) return;
-
-    // Listen to all chats where the current user is a participant
-    const chatsRef = collection(db, 'chats');
-    const q = query(chatsRef, where('participants', 'array-contains', currentUser.uid));
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const counts: { [userId: string]: number } = {};
-      
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const participants = data.participants as string[];
-        
-        // Find the OTHER user in the chat
-        const otherUserId = participants.find(uid => uid !== currentUser.uid);
-        
-        if (otherUserId && data.unreadCounts) {
-           // Get the unread count for the CURRENT user
-           const myUnreadCount = data.unreadCounts[currentUser.uid] || 0;
-           if (myUnreadCount > 0) {
-             counts[otherUserId] = myUnreadCount;
-           }
-        }
-      });
-      setUnreadCounts(counts);
-    }, (error) => {
-      console.error("Error listening to unread counts:", error);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const fetchUsers = async () => {
-    try {
-      console.log("Fetching users...");
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      console.log(`Found ${querySnapshot.size} user documents.`);
-      
+    // Real-time listener for users
+    console.log("Setting up user listener...");
+    const usersRef = collection(db, 'users');
+    const unsubscribe = onSnapshot(usersRef, (snapshot) => {
       const usersList: User[] = [];
       const currentUserId = auth.currentUser?.uid;
 
-      querySnapshot.forEach((doc) => {
+      snapshot.forEach((doc) => {
         const data = doc.data();
-        // Exclude current user
         if (doc.id !== currentUserId) {
           usersList.push({
             id: doc.id,
             name: data.username || data.email?.split('@')[0] || 'Unknown User',
             email: data.email,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.username || 'User')}&background=random`
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(data.username || 'User')}&background=random`,
+            reportCount: data.reportCount || 0,
+            isBanned: data.isBanned || false
           });
         }
       });
-
-      console.log(`Filtered users count: ${usersList.length}`);
       setUsers(usersList);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
       setLoading(false);
-      setRefreshing(false);
-    }
-  };
+    }, (error) => {
+      console.error("Error listening to users:", error);
+      setLoading(false);
+    });
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    fetchUsers();
+    return () => unsubscribe();
   }, []);
+
+  // Removed manual fetchUsers and onRefresh as it's now real-time
+  const onRefresh = useCallback(() => {
+    // Optional: Could keep this to force a re-connect if needed, 
+    // but onSnapshot handles updates automatically.
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 1000);
+  }, []);
+
+  const handleBanToggle = async (user: User) => {
+    if (!isAdmin) return;
+
+    const action = user.isBanned ? "Unban" : "Ban";
+    Alert.alert(
+      `${action} User`,
+      `Are you sure you want to ${action.toLowerCase()} ${user.name}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: action, 
+          style: user.isBanned ? "default" : "destructive",
+          onPress: async () => {
+            try {
+              await updateDoc(doc(db, 'users', user.id), {
+                isBanned: !user.isBanned
+              });
+              
+              // Update local state
+              setUsers(prev => prev.map(u => 
+                u.id === user.id ? { ...u, isBanned: !u.isBanned } : u
+              ));
+              
+              Alert.alert("Success", `User has been ${action.toLowerCase()}ned.`);
+            } catch (error) {
+              console.error("Ban error:", error);
+              Alert.alert("Error", "Failed to update user status.");
+            }
+          }
+        }
+      ]
+    );
+  };
 
   const filteredUsers = users.filter(user => 
     user.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -124,11 +129,17 @@ export default function DMScreen() {
 
   const renderUserItem = ({ item }: { item: User }) => {
     const unreadCount = unreadCounts[item.id] || 0;
+    const isHighRisk = (item.reportCount || 0) >= 5;
 
     return (
       <TouchableOpacity 
-        style={[styles.userCard, { backgroundColor: colors.card }]} 
+        style={[
+          styles.userCard, 
+          { backgroundColor: colors.card },
+          item.isBanned && { opacity: 0.5 }
+        ]} 
         onPress={() => navigateToChat(item.id, item.name)}
+        onLongPress={() => handleBanToggle(item)}
       >
         <View style={styles.avatarContainer}>
           <Image source={{ uri: item.avatar }} style={styles.avatar} />
@@ -143,6 +154,16 @@ export default function DMScreen() {
         <Text style={[styles.userName, { color: colors.textDark }]} numberOfLines={1}>
           {item.name}
         </Text>
+        
+        {isAdmin && (
+          <View style={{ marginTop: 5, alignItems: 'center' }}>
+            {item.isBanned ? (
+              <Text style={{ color: colors.danger, fontWeight: 'bold', fontSize: 10 }}>BANNED</Text>
+            ) : isHighRisk ? (
+              <Text style={{ color: colors.secondary, fontWeight: 'bold', fontSize: 10 }}>RISK ({item.reportCount})</Text>
+            ) : null}
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -151,6 +172,7 @@ export default function DMScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.textDark }]}>Messages</Text>
+        {isAdmin && <Text style={{ color: colors.secondary, fontSize: 12 }}>Admin Mode</Text>}
       </View>
 
       <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>

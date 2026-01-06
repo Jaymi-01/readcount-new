@@ -65,10 +65,29 @@ export default function ChatScreen() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
+  // Report Modal State
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reporting, setReporting] = useState(false);
+
   const flatListRef = useRef<FlatList>(null);
+
+  const [isBanned, setIsBanned] = useState(false);
 
   // Generate a consistent chat ID based on user IDs
   const chatId = [currentUser?.uid, recipientId].sort().join('_');
+
+  useEffect(() => {
+    if (!currentUser) return;
+    // Check if current user is banned
+    const checkBanStatus = async () => {
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      if (userDoc.exists() && userDoc.data().isBanned) {
+        setIsBanned(true);
+      }
+    };
+    checkBanStatus();
+  }, [currentUser]);
 
   // Mark messages as read (reset unread count) when entering chat
   useEffect(() => {
@@ -127,6 +146,44 @@ export default function ChatScreen() {
 
     return () => unsubscribe();
   }, [currentUser, recipientId, chatId]);
+
+  const openReportModal = () => {
+    setReportReason('');
+    setReportModalVisible(true);
+  };
+
+  const submitReport = async () => {
+    if (!reportReason.trim()) {
+      Alert.alert("Reason Required", "Please enter a reason for reporting this user.");
+      return;
+    }
+    if (!currentUser) return;
+
+    setReporting(true);
+    try {
+      // 1. Create Report
+      await addDoc(collection(db, 'reports'), {
+        reporterId: currentUser.uid,
+        reportedId: recipientId,
+        timestamp: Timestamp.now(),
+        reason: reportReason.trim()
+      });
+
+      // 2. Increment reportCount on reported user
+      const reportedUserRef = doc(db, 'users', recipientId);
+      await updateDoc(reportedUserRef, {
+        reportCount: increment(1)
+      });
+
+      setReportModalVisible(false);
+      Alert.alert("Reported", "User has been reported to the admin.");
+    } catch (error) {
+      console.error("Report error:", error);
+      Alert.alert("Error", "Failed to report user.");
+    } finally {
+      setReporting(false);
+    }
+  };
 
   const pickImage = async () => {
     try {
@@ -201,6 +258,10 @@ export default function ChatScreen() {
   };
 
   const sendMessage = async (imageUrl?: string) => {
+    if (isBanned) {
+      Alert.alert("Banned", "You are banned from sending messages.");
+      return;
+    }
     if ((inputText.trim().length === 0 && !imageUrl) || !currentUser) return;
     
     // Safety check for size again if passing blindly
@@ -298,6 +359,11 @@ export default function ChatScreen() {
               <Ionicons name="arrow-back" size={24} color={colors.textDark} />
             </TouchableOpacity>
           ),
+          headerRight: () => (
+            <TouchableOpacity onPress={openReportModal} style={{ marginRight: 10 }}>
+              <Ionicons name="warning-outline" size={24} color={colors.danger} />
+            </TouchableOpacity>
+          ),
         }} 
       />
       
@@ -324,34 +390,42 @@ export default function ChatScreen() {
         />
       )}
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        style={[styles.inputContainer, { backgroundColor: colors.card, borderTopColor: colors.border }]}
-      >
-        <TouchableOpacity 
-          onPress={pickImage} 
-          disabled={uploading}
-          style={styles.attachButton}
+      {isBanned ? (
+        <View style={[styles.bannedContainer, { backgroundColor: colors.card }]}>
+          <Text style={{ color: colors.danger, fontWeight: 'bold' }}>
+            You have been banned from using chat.
+          </Text>
+        </View>
+      ) : (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+          style={[styles.inputContainer, { backgroundColor: colors.card, borderTopColor: colors.border }]}
         >
-          {uploading ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Ionicons name="image-outline" size={24} color={colors.primary} />
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={pickImage} 
+            disabled={uploading}
+            style={styles.attachButton}
+          >
+            {uploading ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="image-outline" size={24} color={colors.primary} />
+            )}
+          </TouchableOpacity>
 
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.background, color: colors.textDark }]}
-          value={inputText}
-          onChangeText={setInputText}
-          placeholder="Type a message..."
-          placeholderTextColor={colors.textLight}
-        />
-        <TouchableOpacity onPress={() => sendMessage()} style={[styles.sendButton, { backgroundColor: colors.primary }]}>
-          <Ionicons name="send" size={20} color={colors.white} />
-        </TouchableOpacity>
-      </KeyboardAvoidingView>
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.background, color: colors.textDark }]}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Type a message..."
+            placeholderTextColor={colors.textLight}
+          />
+          <TouchableOpacity onPress={() => sendMessage()} style={[styles.sendButton, { backgroundColor: colors.primary }]}>
+            <Ionicons name="send" size={20} color={colors.white} />
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      )}
 
       {/* Full Screen Image Modal */}
       <Modal
@@ -387,6 +461,59 @@ export default function ChatScreen() {
               resizeMode="contain"
             />
           )}
+        </View>
+      </Modal>
+
+      {/* Report Modal */}
+      <Modal
+        visible={reportModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setReportModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.reportModalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.reportTitle, { color: colors.textDark }]}>Report User</Text>
+            <Text style={[styles.reportSubtitle, { color: colors.textLight }]}>
+              Please explain why you are reporting this user.
+            </Text>
+            
+            <TextInput
+              style={[styles.reportInput, { 
+                backgroundColor: colors.background, 
+                color: colors.textDark,
+                borderColor: colors.border 
+              }]}
+              multiline
+              numberOfLines={4}
+              placeholder="Reason for reporting..."
+              placeholderTextColor={colors.textLight}
+              value={reportReason}
+              onChangeText={setReportReason}
+            />
+
+            <View style={styles.reportButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]} 
+                onPress={() => setReportModalVisible(false)}
+                disabled={reporting}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, { backgroundColor: colors.danger }]} 
+                onPress={submitReport}
+                disabled={reporting}
+              >
+                {reporting ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Report</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
 
@@ -464,6 +591,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  bannedContainer: {
+    padding: 20,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
   
   // Modal Styles
   modalContainer: {
@@ -489,5 +622,67 @@ const styles = StyleSheet.create({
     right: 20,
     zIndex: 10,
     padding: 10,
+  },
+
+  // Report Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  reportModalContent: {
+    width: '100%',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  reportTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  reportSubtitle: {
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  reportInput: {
+    width: '100%',
+    height: 100,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    marginBottom: 20,
+    fontSize: 16,
+    textAlignVertical: 'top',
+  },
+  reportButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#e2e8f0',
+  },
+  cancelButtonText: {
+    color: '#475569',
+    fontWeight: '600',
+  },
+  confirmButtonText: {
+    color: 'white',
+    fontWeight: '600',
   },
 });
