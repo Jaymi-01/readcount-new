@@ -34,10 +34,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="community"
+        name="dm"
         options={{
-          title: 'Community',
-          tabBarIcon: ({ color }) => <Ionicons size={28} name="people" color={color} />,
+          title: 'DM',
+          tabBarIcon: ({ color }) => <Ionicons size={28} name="chatbubble" color={color} />,
         }}
       />
       <Tabs.Screen
