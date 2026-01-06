@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 
 interface User {
@@ -33,9 +33,45 @@ export default function DMScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCounts, setUnreadCounts] = useState<{ [userId: string]: number }>({});
 
   useEffect(() => {
     fetchUsers();
+  }, []);
+
+  // Listen for unread counts
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    // Listen to all chats where the current user is a participant
+    const chatsRef = collection(db, 'chats');
+    const q = query(chatsRef, where('participants', 'array-contains', currentUser.uid));
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const counts: { [userId: string]: number } = {};
+      
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        const participants = data.participants as string[];
+        
+        // Find the OTHER user in the chat
+        const otherUserId = participants.find(uid => uid !== currentUser.uid);
+        
+        if (otherUserId && data.unreadCounts) {
+           // Get the unread count for the CURRENT user
+           const myUnreadCount = data.unreadCounts[currentUser.uid] || 0;
+           if (myUnreadCount > 0) {
+             counts[otherUserId] = myUnreadCount;
+           }
+        }
+      });
+      setUnreadCounts(counts);
+    }, (error) => {
+      console.error("Error listening to unread counts:", error);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const fetchUsers = async () => {
@@ -86,17 +122,30 @@ export default function DMScreen() {
     });
   };
 
-  const renderUserItem = ({ item }: { item: User }) => (
-    <TouchableOpacity 
-      style={[styles.userCard, { backgroundColor: colors.card }]} 
-      onPress={() => navigateToChat(item.id, item.name)}
-    >
-      <Image source={{ uri: item.avatar }} style={styles.avatar} />
-      <Text style={[styles.userName, { color: colors.textDark }]} numberOfLines={1}>
-        {item.name}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderUserItem = ({ item }: { item: User }) => {
+    const unreadCount = unreadCounts[item.id] || 0;
+
+    return (
+      <TouchableOpacity 
+        style={[styles.userCard, { backgroundColor: colors.card }]} 
+        onPress={() => navigateToChat(item.id, item.name)}
+      >
+        <View style={styles.avatarContainer}>
+          <Image source={{ uri: item.avatar }} style={styles.avatar} />
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
+        <Text style={[styles.userName, { color: colors.textDark }]} numberOfLines={1}>
+          {item.name}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -207,12 +256,34 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 2,
   },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 10,
+  },
   avatar: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginBottom: 10,
     backgroundColor: '#eee',
+  },
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#ef4444', // Danger color
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   userName: {
     fontSize: 14,

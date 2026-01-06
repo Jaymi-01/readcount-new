@@ -22,7 +22,11 @@ import {
   orderBy, 
   onSnapshot, 
   Timestamp, 
-  doc 
+  doc,
+  setDoc,
+  updateDoc,
+  increment,
+  getDoc
 } from 'firebase/firestore';
 import { auth, db } from '../../firebaseConfig';
 
@@ -51,6 +55,28 @@ export default function ChatScreen() {
 
   // Generate a consistent chat ID based on user IDs
   const chatId = [currentUser?.uid, recipientId].sort().join('_');
+
+  // Mark messages as read (reset unread count) when entering chat
+  useEffect(() => {
+    if (!currentUser || !recipientId) return;
+
+    const resetUnreadCount = async () => {
+      try {
+        const chatRef = doc(db, 'chats', chatId);
+        const chatDoc = await getDoc(chatRef);
+        
+        if (chatDoc.exists()) {
+          await updateDoc(chatRef, {
+            [`unreadCounts.${currentUser.uid}`]: 0
+          });
+        }
+      } catch (error) {
+        console.error("Error resetting unread count:", error);
+      }
+    };
+
+    resetUnreadCount();
+  }, [currentUser, recipientId, chatId]);
 
   useEffect(() => {
     if (!currentUser || !recipientId) {
@@ -96,12 +122,31 @@ export default function ChatScreen() {
     setInputText(''); // Clear input immediately for better UX
 
     try {
+      // 1. Add message to subcollection
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
         text: text,
         senderId: currentUser.uid,
         createdAt: Timestamp.now(),
-        participants: [currentUser.uid, recipientId] // Optional: useful for indexing
+        participants: [currentUser.uid, recipientId]
       });
+
+      // 2. Update chat metadata (last message, unread counts)
+      const chatRef = doc(db, 'chats', chatId);
+      
+      // Use setDoc with merge to ensure document exists, then update
+      await setDoc(chatRef, {
+        lastMessage: text,
+        lastMessageTimestamp: Timestamp.now(),
+        participants: [currentUser.uid, recipientId],
+        // Initialize unread counts map if it doesn't exist, logic handled by merge/update below
+      }, { merge: true });
+
+      // Increment recipient's unread count
+      // We use updateDoc for the specific field increment to avoid overwriting the whole map if using setDoc blindly
+      await updateDoc(chatRef, {
+        [`unreadCounts.${recipientId}`]: increment(1)
+      });
+
     } catch (error) {
       console.error("Error sending message:", error);
       // Ideally show a toast or error indicator here
