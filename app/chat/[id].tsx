@@ -9,7 +9,9 @@ import {
   KeyboardAvoidingView, 
   Platform, 
   SafeAreaView,
-  ActivityIndicator
+  ActivityIndicator,
+  Image,
+  Alert
 } from 'react-native';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +30,8 @@ import {
   increment,
   getDoc
 } from 'firebase/firestore';
+// Removed Firebase Storage imports
+import * as ImagePicker from 'expo-image-picker';
 import { auth, db } from '../../firebaseConfig';
 
 interface Message {
@@ -35,6 +39,7 @@ interface Message {
   text: string;
   senderId: string;
   createdAt: Timestamp;
+  imageUrl?: string;
 }
 
 export default function ChatScreen() {
@@ -51,6 +56,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
   // Generate a consistent chat ID based on user IDs
@@ -92,7 +98,6 @@ export default function ChatScreen() {
     const q = query(messagesRef, orderBy('createdAt', 'asc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      console.log(`Snapshot received: ${snapshot.size} messages`);
       const msgs: Message[] = [];
       snapshot.forEach((doc) => {
         msgs.push({
@@ -115,16 +120,53 @@ export default function ChatScreen() {
     return () => unsubscribe();
   }, [currentUser, recipientId, chatId]);
 
-  const sendMessage = async () => {
-    if (inputText.trim().length === 0 || !currentUser) return;
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true, // crop to square/fixed ratio
+        quality: 0.4, // Keep quality low to save space (Firestore 1MB limit)
+        base64: true, // Request Base64
+      });
+
+      if (!result.canceled && result.assets[0].base64) {
+        // Construct data URI
+        const base64Img = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        
+        // Check size (approx)
+        if (base64Img.length > 1000000) { // 1MB
+            Alert.alert("Image too large", "Please select a smaller image.");
+            return;
+        }
+
+        await sendMessage(base64Img);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image");
+    }
+  };
+
+  const sendMessage = async (imageUrl?: string) => {
+    if ((inputText.trim().length === 0 && !imageUrl) || !currentUser) return;
+    
+    // Safety check for size again if passing blindly
+    if (imageUrl && imageUrl.length > 1040000) { 
+        Alert.alert("Error", "Image is too large to send.");
+        return;
+    }
 
     const text = inputText.trim();
-    setInputText(''); // Clear input immediately for better UX
+    if (!imageUrl) setInputText(''); // Clear input if sending text only
+
+    // Optimistically set uploading to true if it's an image, though it's instant for base64
+    if (imageUrl) setUploading(true);
 
     try {
       // 1. Add message to subcollection
       await addDoc(collection(db, 'chats', chatId, 'messages'), {
-        text: text,
+        text: text, // Can be empty if sending image only
+        imageUrl: imageUrl || null,
         senderId: currentUser.uid,
         createdAt: Timestamp.now(),
         participants: [currentUser.uid, recipientId]
@@ -135,21 +177,23 @@ export default function ChatScreen() {
       
       // Use setDoc with merge to ensure document exists, then update
       await setDoc(chatRef, {
-        lastMessage: text,
+        lastMessage: imageUrl ? 'Sent an image' : text,
         lastMessageTimestamp: Timestamp.now(),
         participants: [currentUser.uid, recipientId],
-        // Initialize unread counts map if it doesn't exist, logic handled by merge/update below
       }, { merge: true });
 
       // Increment recipient's unread count
-      // We use updateDoc for the specific field increment to avoid overwriting the whole map if using setDoc blindly
       await updateDoc(chatRef, {
         [`unreadCounts.${recipientId}`]: increment(1)
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending message:", error);
-      // Ideally show a toast or error indicator here
+      if (error.code === 'resource-exhausted') {
+         Alert.alert("Failed", "Image too large for database.");
+      }
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -165,12 +209,22 @@ export default function ChatScreen() {
           isMe ? { backgroundColor: colors.primary } : { backgroundColor: colors.card },
           isMe ? styles.myMessageBubble : styles.theirMessageBubble
         ]}>
-          <Text style={[
-            styles.messageText, 
-            isMe ? { color: colors.white } : { color: colors.textDark }
-          ]}>
-            {item.text}
-          </Text>
+          {item.imageUrl && (
+            <Image 
+              source={{ uri: item.imageUrl }} 
+              style={styles.messageImage} 
+              resizeMode="contain"
+            />
+          )}
+          {item.text ? (
+            <Text style={[
+              styles.messageText, 
+              isMe ? { color: colors.white } : { color: colors.textDark },
+              item.imageUrl && { marginTop: 8 }
+            ]}>
+              {item.text}
+            </Text>
+          ) : null}
         </View>
       </View>
     );
@@ -220,6 +274,18 @@ export default function ChatScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         style={[styles.inputContainer, { backgroundColor: colors.card, borderTopColor: colors.border }]}
       >
+        <TouchableOpacity 
+          onPress={pickImage} 
+          disabled={uploading}
+          style={styles.attachButton}
+        >
+          {uploading ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="image-outline" size={24} color={colors.primary} />
+          )}
+        </TouchableOpacity>
+
         <TextInput
           style={[styles.input, { backgroundColor: colors.background, color: colors.textDark }]}
           value={inputText}
@@ -227,7 +293,7 @@ export default function ChatScreen() {
           placeholder="Type a message..."
           placeholderTextColor={colors.textLight}
         />
-        <TouchableOpacity onPress={sendMessage} style={[styles.sendButton, { backgroundColor: colors.primary }]}>
+        <TouchableOpacity onPress={() => sendMessage()} style={[styles.sendButton, { backgroundColor: colors.primary }]}>
           <Ionicons name="send" size={20} color={colors.white} />
         </TouchableOpacity>
       </KeyboardAvoidingView>
@@ -272,6 +338,12 @@ const styles = StyleSheet.create({
   theirMessageBubble: {
     borderBottomLeftRadius: 4,
   },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
   messageText: {
     fontSize: 16,
   },
@@ -280,6 +352,10 @@ const styles = StyleSheet.create({
     padding: 10,
     alignItems: 'center',
     borderTopWidth: 1,
+  },
+  attachButton: {
+    padding: 10,
+    marginRight: 5,
   },
   input: {
     flex: 1,
