@@ -74,6 +74,20 @@ export default function ChatScreen() {
 
   const [isBanned, setIsBanned] = useState(false);
 
+  // Message Request Logic
+  const myMessages = messages.filter(m => m.senderId === currentUser?.uid);
+  const theirMessages = messages.filter(m => m.senderId === recipientId);
+  const isRequestPending = myMessages.length >= 3 && theirMessages.length === 0;
+
+  console.log("Chat Request Debug:", {
+    total: messages.length,
+    me: currentUser?.uid,
+    them: recipientId,
+    myMsgCount: myMessages.length,
+    theirMsgCount: theirMessages.length,
+    pending: isRequestPending
+  });
+
   // Generate a consistent chat ID based on user IDs
   const chatId = [currentUser?.uid, recipientId].sort().join('_');
 
@@ -220,13 +234,12 @@ export default function ChatScreen() {
       // 1. Request Permissions
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert("Permission Denied", "Need permission to save images.");
+        Alert.alert("Permission Denied", "Need permission to save images. Please check your app settings.");
         setDownloading(false);
         return;
       }
 
       // 2. Write Base64 to temporary file
-      // Casting to any to avoid TS errors on constants that are definitely available at runtime
       const FS: any = FileSystem;
       const fileDir = FS.documentDirectory || FS.cacheDirectory;
       if (!fileDir) {
@@ -234,11 +247,13 @@ export default function ChatScreen() {
       }
       
       const filename = fileDir + `photo_${Date.now()}.jpg`;
-      // Extract base64 data only (remove "data:image/jpeg;base64,")
-      const base64Data = selectedImage.split(',')[1];
+      
+      // Extract base64 data
+      const parts = selectedImage.split(',');
+      const base64Data = parts.length > 1 ? parts[1] : parts[0];
       
       await FS.writeAsStringAsync(filename, base64Data, {
-        encoding: FS.EncodingType.Base64,
+        encoding: 'base64', // Using string literal for robustness
       });
 
       // 3. Save to Gallery
@@ -250,8 +265,8 @@ export default function ChatScreen() {
       await FS.deleteAsync(filename, { idempotent: true });
 
     } catch (error: any) {
-      console.error("Download error:", error);
-      Alert.alert("Error", "Failed to save image.");
+      console.error("Download error detail:", error);
+      Alert.alert("Error", `Failed to save image: ${error.message || 'Unknown error'}`);
     } finally {
       setDownloading(false);
     }
@@ -390,18 +405,41 @@ export default function ChatScreen() {
         />
       )}
 
-      {isBanned ? (
-        <View style={[styles.bannedContainer, { backgroundColor: colors.card }]}>
-          <Text style={{ color: colors.danger, fontWeight: 'bold' }}>
-            You have been banned from using chat.
-          </Text>
-        </View>
-      ) : (
+            {isBanned ? (
+
+              <View style={[styles.bannedContainer, { backgroundColor: colors.card }]}>
+
+                <Text style={{ color: colors.danger, fontWeight: 'bold' }}>
+
+                  You have been banned from using chat.
+
+                </Text>
+
+              </View>
+
+            ) : isRequestPending ? (
+
+              <View style={[styles.bannedContainer, { backgroundColor: colors.card }]}>
+
+                <Text style={{ color: colors.textLight, textAlign: 'center' }}>
+
+                  Message Request Pending.{'\n'}Waiting for user to reply.
+
+                </Text>
+
+              </View>
+
+            ) : (
+
               <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={100}
-                style={[styles.inputContainer, { backgroundColor: colors.card, borderTopColor: colors.border }]}
-              >          <TouchableOpacity 
+
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+
+                style={[styles.inputContainer, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
+
+                <TouchableOpacity 
             onPress={pickImage} 
             disabled={uploading}
             style={styles.attachButton}
