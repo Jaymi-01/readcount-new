@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar, TextInput, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
@@ -54,6 +54,8 @@ export default function StatsScreen() {
   const [booksReadThisYear, setBooksReadThisYear] = useState(0);
   const [yearlyGoal, setYearlyGoal] = useState(0);
   const [monthlyStats, setMonthlyStats] = useState<{month: string, count: number}[]>([]);
+  const [selectedYear, setSelectedYear] = useState<number | 'All'>(new Date().getFullYear());
+  const [availableYears, setAvailableYears] = useState<(number | 'All')[]>([new Date().getFullYear()]);
 
   // Animation Shared Value for Yearly Progress
   const progressValue = useSharedValue(0);
@@ -61,21 +63,28 @@ export default function StatsScreen() {
   useEffect(() => {
     if (!user) return;
 
-    // Fetch User Goal
-    const fetchGoal = async () => {
+    // Fetch User Goal and Earliest Book Year
+    const fetchUserMeta = async () => {
       try {
         const userDoc = await getDoc(doc(db, 'users', user.uid));
         if (userDoc.exists()) {
           setYearlyGoal(userDoc.data().readingGoal || 0);
+          
+          const startYear = userDoc.data().dateAdded?.toDate ? userDoc.data().dateAdded.toDate().getFullYear() : new Date().getFullYear();
+          const currentYear = new Date().getFullYear();
+          const years: (number | 'All')[] = ['All'];
+          for (let y = currentYear; y >= Math.min(startYear, 2024); y--) {
+            years.push(y);
+          }
+          setAvailableYears(years);
         }
       } catch (error) {
-        console.error("Error fetching goal:", error);
+        console.error("Error fetching user meta:", error);
       }
     };
-    fetchGoal();
+    fetchUserMeta();
 
     // Fetch Books for Stats
-    const currentYear = new Date().getFullYear();
     const q = query(
       collection(db, 'books'),
       where('userId', '==', user.uid),
@@ -102,7 +111,8 @@ export default function StatsScreen() {
           finishDate = new Date(data.dateAdded.seconds * 1000);
         }
 
-        if (finishDate && finishDate.getFullYear() === currentYear) {
+        // Filter by selected year OR show all if 'All' is selected
+        if (finishDate && (selectedYear === 'All' || finishDate.getFullYear() === selectedYear)) {
           count++;
           monthCounts[finishDate.getMonth()]++;
         }
@@ -119,7 +129,7 @@ export default function StatsScreen() {
     });
 
     return () => unsubscribe();
-  }, [user, yearlyGoal]);
+  }, [user, selectedYear, yearlyGoal]);
 
   const animatedProgressStyle = useAnimatedStyle(() => ({
     width: `${progressValue.value * 100}%`,
@@ -137,28 +147,59 @@ export default function StatsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: colors.textDark }]}>Reading Stats</Text>
-          <Text style={[styles.yearLabel, { color: colors.textLight }]}>{new Date().getFullYear()} Overview</Text>
+          
+          {/* YEAR SELECTOR CHIPS */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            style={styles.yearScroll}
+            contentContainerStyle={styles.yearScrollContent}
+          >
+            {availableYears.map((year) => (
+              <TouchableOpacity
+                key={year}
+                onPress={() => setSelectedYear(year)}
+                style={[
+                  styles.yearChip,
+                  { backgroundColor: selectedYear === year ? colors.primary : colors.card, borderColor: colors.border }
+                ]}
+              >
+                <Text style={[
+                  styles.yearText,
+                  { color: selectedYear === year ? '#FFF' : colors.textLight }
+                ]}>
+                  {year}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* YEARLY GOAL CARD */}
         <View style={[styles.card, { backgroundColor: theme === 'dark' ? colors.primaryLight : '#eef2ff', borderColor: colors.primary }]}>
-          <Text style={[styles.cardTitle, { color: colors.textDark }]}>Annual Reading Goal</Text>
+          <Text style={[styles.cardTitle, { color: colors.textDark }]}>
+            {selectedYear === 'All' ? 'Lifetime Library' : `${selectedYear} Reading Goal`}
+          </Text>
           <View style={styles.goalInfo}>
             <Text style={[styles.goalNumber, { color: colors.primary }]}>{booksReadThisYear}</Text>
-            <Text style={[styles.goalTotal, { color: colors.textLight }]}>/ {yearlyGoal || '—'} books</Text>
+            {selectedYear !== 'All' && (
+              <Text style={[styles.goalTotal, { color: colors.textLight }]}>/ {yearlyGoal || '—'} books</Text>
+            )}
           </View>
           
           <View style={[styles.progressBarBg, { backgroundColor: colors.white }]}>
-            <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: `${(booksReadThisYear / (yearlyGoal || 1)) * 100}%` }]} />
+            <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: selectedYear === 'All' ? '100%' : `${(booksReadThisYear / (yearlyGoal || 1)) * 100}%` }]} />
           </View>
           
           <Text style={[styles.progressText, { color: colors.textDark, fontWeight: '700' }]}>
-            {yearlyGoal > 0 
-              ? `${Math.round((booksReadThisYear / (yearlyGoal || 1)) * 100)}% of your goal reached!` 
-              : "Set a goal in Settings to track progress!"}
+            {selectedYear === 'All' 
+              ? `You have finished ${booksReadThisYear} books in total!` 
+              : yearlyGoal > 0 
+                ? `${Math.round((booksReadThisYear / (yearlyGoal || 1)) * 100)}% of your ${selectedYear} goal reached!` 
+                : "Set a goal in Settings to track progress!"}
           </Text>
         </View>
 
@@ -200,11 +241,26 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 34,
     fontWeight: 'bold',
+    marginBottom: 16,
   },
-  yearLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginTop: 4,
+  yearScroll: {
+    marginTop: 8,
+  },
+  yearScrollContent: {
+    gap: 10,
+    paddingRight: 20,
+  },
+  yearChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  yearText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   card: {
     padding: 20,
