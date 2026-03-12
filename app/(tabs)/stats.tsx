@@ -94,45 +94,57 @@ export default function StatsScreen() {
         </View>
 
         {/* YEARLY GOAL CARD */}
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, { color: colors.textDark }]}>Annual Goal</Text>
+        <View style={[styles.card, { backgroundColor: theme === 'dark' ? colors.primaryLight : '#eef2ff', borderColor: colors.primary }]}>
+          <Text style={[styles.cardTitle, { color: colors.textDark }]}>Annual Reading Goal</Text>
           <View style={styles.goalInfo}>
             <Text style={[styles.goalNumber, { color: colors.primary }]}>{booksReadThisYear}</Text>
             <Text style={[styles.goalTotal, { color: colors.textLight }]}>/ {yearlyGoal || '—'} books</Text>
           </View>
           
-          <View style={[styles.progressBarBg, { backgroundColor: colors.background }]}>
+          <View style={[styles.progressBarBg, { backgroundColor: colors.white }]}>
             <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: `${progress * 100}%` }]} />
           </View>
           
-          <Text style={[styles.progressText, { color: colors.textLight }]}>
+          <Text style={[styles.progressText, { color: colors.textDark, fontWeight: '700' }]}>
             {yearlyGoal > 0 
               ? `${Math.round(progress * 100)}% of your goal reached!` 
               : "Set a goal in Settings to track progress!"}
           </Text>
         </View>
 
-        {/* MONTHLY BREAKDOWN */}
+        {/* MONTHLY ACTIVITY (POLL STYLE) */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textDark }]}>Monthly Breakdown</Text>
-          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            {monthlyStats.map((item, index) => (
-              <View key={item.month} style={styles.monthRow}>
-                <Text style={[styles.monthName, { color: colors.textDark }]}>{item.month}</Text>
-                <View style={styles.barContainer}>
-                  <View 
-                    style={[
-                      styles.monthBar, 
-                      { 
-                        backgroundColor: colors.primary, 
-                        width: item.count > 0 ? `${(item.count / Math.max(...monthlyStats.map(s => s.count), 1)) * 100}%` : 0 
-                      }
-                    ]} 
-                  />
+          <Text style={[styles.sectionTitle, { color: colors.textDark }]}>Monthly Activity</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, paddingVertical: 24 }]}>
+            {monthlyStats.map((item, index) => {
+              const maxCount = Math.max(...monthlyStats.map(s => s.count), 1);
+              const relativeWidth = item.count > 0 ? (item.count / maxCount) * 100 : 0;
+              
+              // Intensity/Shade logic (GitHub style intensity)
+              // We'll use opacity based on count relative to max
+              const intensity = item.count > 0 ? 0.3 + (item.count / maxCount) * 0.7 : 0;
+              const barColor = item.count > 0 ? `rgba(99, 102, 241, ${intensity})` : 'transparent';
+
+              return (
+                <View key={item.month} style={styles.monthRow}>
+                  <Text style={[styles.monthName, { color: colors.textDark }]}>{item.month}</Text>
+                  <View style={styles.pollTrack}>
+                    <View style={[styles.barContainer, { backgroundColor: theme === 'dark' ? '#1e293b' : '#f1f5f9' }]}>
+                      <View 
+                        style={[
+                          styles.monthBar, 
+                          { 
+                            backgroundColor: theme === 'dark' ? `rgba(129, 140, 248, ${intensity})` : barColor, 
+                            width: `${relativeWidth}%` 
+                          }
+                        ]} 
+                      />
+                    </View>
+                    <Text style={[styles.monthCount, { color: colors.textDark, fontWeight: '700' }]}>{item.count}</Text>
+                  </View>
                 </View>
-                <Text style={[styles.monthCount, { color: colors.textLight }]}>{item.count}</Text>
-              </View>
-            ))}
+              );
+            })}
           </View>
         </View>
       </ScrollView>
@@ -209,25 +221,33 @@ const styles = StyleSheet.create({
   monthRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   monthName: {
-    width: 40,
-    fontSize: 14,
-    fontWeight: '600',
+    width: 35,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  pollTrack: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   barContainer: {
     flex: 1,
-    height: 8,
-    marginHorizontal: 12,
-    justifyContent: 'center',
+    height: 12,
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginRight: 12,
   },
   monthBar: {
-    height: 8,
-    borderRadius: 4,
+    height: '100%',
+    borderRadius: 6,
   },
   monthCount: {
-    width: 20,
+    width: 25,
     fontSize: 14,
     textAlign: 'right',
   },

@@ -241,6 +241,24 @@ export default function LibraryScreen() {
 
   const filteredBooks = books.filter(b => b.status === activeTab && matchesFilter(b));
 
+  const getCardBackground = (status: BookStatus) => {
+    switch (status) {
+      case 'read': return colors.readBg;
+      case 'reading': return colors.readingBg;
+      case 'toread': return colors.toReadBg;
+      default: return colors.card;
+    }
+  };
+
+  const getCardBorder = (status: BookStatus) => {
+    switch (status) {
+      case 'read': return colors.read;
+      case 'reading': return colors.reading;
+      case 'toread': return colors.toRead;
+      default: return colors.border;
+    }
+  };
+
   const renderBookItem = ({ item }: { item: Book }) => {
     // Migration display logic
     let displayRating = item.rating || 0;
@@ -267,7 +285,7 @@ export default function LibraryScreen() {
     }
 
     return (
-      <View style={[styles.bookCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.bookCard, { backgroundColor: getCardBackground(item.status), borderColor: getCardBorder(item.status) }]}>
         <View style={styles.bookInfo}>
           <Text style={[styles.bookTitle, { color: colors.textDark }]}>{item.title}</Text>
           <Text style={[styles.bookAuthor, { color: colors.textLight }]}>{item.author}</Text>
