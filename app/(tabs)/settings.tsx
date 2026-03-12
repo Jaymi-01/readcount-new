@@ -17,11 +17,14 @@ export default function SettingsScreen() {
 
   const [username, setUsername] = useState('');
   const [newUsername, setNewUsername] = useState('');
+  const [readingGoal, setReadingGoal] = useState(0);
+  const [newGoal, setNewGoal] = useState('');
   const [loading, setLoading] = useState(true);
   const [lastUsernameChange, setLastUsernameChange] = useState<Timestamp | null>(null);
 
   // Modals
   const [showNameModal, setShowNameModal] = useState(false);
+  const [showGoalModal, setShowGoalModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
 
@@ -39,6 +42,7 @@ export default function SettingsScreen() {
       if (userDoc.exists()) {
         const data = userDoc.data();
         setUsername(data.username || user.displayName || '');
+        setReadingGoal(data.readingGoal || 0);
         setLastUsernameChange(data.lastUsernameChange || null);
       } else {
         setUsername(user.displayName || '');
@@ -100,6 +104,30 @@ export default function SettingsScreen() {
 
     } catch (error: any) {
       console.error("Update username error:", error);
+      Toast.show({ type: 'error', text1: 'Update Failed', text2: error.message });
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleUpdateGoal = async () => {
+    if (!user) return;
+    const goalNum = parseInt(newGoal);
+    if (isNaN(goalNum) || goalNum < 0) {
+      Toast.show({ type: 'error', text1: 'Invalid Goal', text2: 'Please enter a valid number.' });
+      return;
+    }
+
+    setModalLoading(true);
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        readingGoal: goalNum
+      });
+
+      setReadingGoal(goalNum);
+      setShowGoalModal(false);
+      Toast.show({ type: 'success', text1: 'Success', text2: 'Reading goal updated.' });
+    } catch (error: any) {
       Toast.show({ type: 'error', text1: 'Update Failed', text2: error.message });
     } finally {
       setModalLoading(false);
@@ -169,6 +197,22 @@ export default function SettingsScreen() {
               <Text style={[styles.value, { color: colors.textLight }]}>{username}</Text>
             </View>
             <Ionicons name="pencil" size={20} color={colors.primary} />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity 
+            style={styles.row} 
+            onPress={() => {
+              setNewGoal(readingGoal.toString());
+              setShowGoalModal(true);
+            }}
+          >
+            <View>
+              <Text style={[styles.label, { color: colors.textDark }]}>Yearly Reading Goal</Text>
+              <Text style={[styles.value, { color: colors.textLight }]}>{readingGoal} books</Text>
+            </View>
+            <Ionicons name="trophy-outline" size={20} color={colors.primary} />
           </TouchableOpacity>
 
           <View style={styles.divider} />
@@ -256,6 +300,54 @@ export default function SettingsScreen() {
               <TouchableOpacity 
                 style={[styles.modalButton, { backgroundColor: colors.primary }]} 
                 onPress={handleUpdateUsername}
+                disabled={modalLoading}
+              >
+                {modalLoading ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* --- EDIT GOAL MODAL --- */}
+      <Modal
+        visible={showGoalModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGoalModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.textDark }]}>Set Annual Goal</Text>
+            <Text style={[styles.modalText, { color: colors.textLight }]}>
+              How many books do you want to read this year?
+            </Text>
+            
+            <TextInput
+              style={[styles.input, { color: colors.textDark, borderColor: colors.border, backgroundColor: colors.background }]}
+              placeholder="e.g. 24"
+              placeholderTextColor={colors.textLight}
+              value={newGoal}
+              onChangeText={setNewGoal}
+              keyboardType="numeric"
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.cancelButton]} 
+                onPress={() => setShowGoalModal(false)}
+                disabled={modalLoading}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, { backgroundColor: colors.primary }]} 
+                onPress={handleUpdateGoal}
                 disabled={modalLoading}
               >
                 {modalLoading ? (
