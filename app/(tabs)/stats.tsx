@@ -5,38 +5,7 @@ import { auth, db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, useAnimatedProps } from 'react-native-reanimated';
-
-const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
-
-// --- SUB-COMPONENT FOR ANIMATING NUMBERS ---
-function AnimatedNumber({ value, style }: { value: number, style: any }) {
-  const animatedValue = useSharedValue(0);
-
-  useFocusEffect(
-    useCallback(() => {
-      animatedValue.value = 0;
-      animatedValue.value = withTiming(value, { duration: 1500 });
-    }, [value])
-  );
-
-  const animatedProps = useAnimatedProps(() => {
-    return {
-      text: `${Math.floor(animatedValue.value)}`,
-    } as any;
-  });
-
-  return (
-    <AnimatedTextInput
-      underlineColorAndroid="transparent"
-      editable={false}
-      multiline={false}
-      value={`${value}`} // Static fallback
-      style={[style, { padding: 0, margin: 0, textAlignVertical: 'center', includeFontPadding: false }]}
-      animatedProps={animatedProps}
-    />
-  );
-}
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 // --- SUB-COMPONENT FOR ANIMATED BARS ---
 function PollBar({ 
@@ -207,7 +176,7 @@ export default function StatsScreen() {
                     relativeValue={item.count / maxCount} 
                     theme={theme} 
                   />
-                  <AnimatedNumber value={item.count} style={[styles.monthCount, { color: colors.textDark, fontWeight: '700' }]} />
+                  <Text style={[styles.monthCount, { color: colors.textDark, fontWeight: '700' }]}>{item.count}</Text>
                 </View>
               </View>            ))}
           </View>
