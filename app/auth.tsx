@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { COLORS, darkColors } from '../constants/colors';
@@ -186,8 +186,12 @@ export default function AuthScreen() {
       return (
         <View style={styles.form}>
           <View style={styles.logoContainer}>
-            <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
-              <Ionicons name="book" size={40} color="white" />
+            <View style={styles.logoIcon}>
+              <Image 
+                source={require('../assets/images/readcount2.png')} 
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
             <Text style={[styles.appName, { color: colors.textDark }]}>ReadCount</Text>
           </View>
@@ -247,8 +251,12 @@ export default function AuthScreen() {
       return (
         <View style={styles.form}>
           <View style={styles.logoContainer}>
-            <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
-              <Ionicons name="book" size={40} color="white" />
+            <View style={styles.logoIcon}>
+              <Image 
+                source={require('../assets/images/readcount2.png')} 
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </View>
             <Text style={[styles.appName, { color: colors.textDark }]}>ReadCount</Text>
           </View>
@@ -311,8 +319,12 @@ export default function AuthScreen() {
     return (
       <View style={styles.form}>
         <View style={styles.logoContainer}>
-          <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
-            <Ionicons name="book" size={40} color="white" />
+          <View style={styles.logoIcon}>
+            <Image 
+              source={require('../assets/images/readcount2.png')} 
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={[styles.appName, { color: colors.textDark }]}>ReadCount</Text>
         </View>
@@ -468,6 +480,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 20,
     elevation: 10,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   appName: {
     fontSize: 24,
