@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar, TextInput, TouchableOpacity, Modal } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar, TextInput, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
@@ -7,6 +7,45 @@ import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// --- SUB-COMPONENT FOR CONFETTI ---
+function ConfettiPiece({ index }: { index: number }) {
+  const x = useSharedValue(Math.random() * SCREEN_WIDTH);
+  const y = useSharedValue(-20);
+  const rotate = useSharedValue(0);
+  const colors = [
+    '#6366f1', '#f43f5e', '#10b981', '#f59e0b', 
+    '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'
+  ];
+  const color = colors[index % colors.length];
+
+  useEffect(() => {
+    y.value = withTiming(SCREEN_HEIGHT + 20, { 
+      duration: 2500 + Math.random() * 3000 
+    });
+    rotate.value = withTiming(Math.random() * 1000, { 
+      duration: 3000 + Math.random() * 2000 
+    });
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: x.value },
+      { translateY: y.value },
+      { rotate: `${rotate.value}deg` }
+    ],
+    backgroundColor: color,
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: index % 2 === 0 ? 5 : 2,
+    zIndex: 100,
+  }));
+
+  return <Animated.View style={animatedStyle} pointerEvents="none" />;
+}
 
 // --- SUB-COMPONENT FOR ANIMATED BARS ---
 function PollBar({ 
@@ -62,6 +101,7 @@ export default function StatsScreen() {
   const [showWrapped, setShowWrapped] = useState(false);
   const [topMonth, setTopMonth] = useState('');
   const [topAuthor, setTopAuthor] = useState('');
+  const [personality, setPersonality] = useState({ title: '', icon: '', desc: '' });
 
   // Animation Shared Value for Yearly Progress
   const progressValue = useSharedValue(0);
@@ -142,6 +182,19 @@ export default function StatsScreen() {
       // Calculate Top Author
       const topAuthEntry = Object.entries(authors).sort((a,b) => b[1] - a[1])[0];
       setTopAuthor(topAuthEntry ? topAuthEntry[0] : 'None');
+
+      // Determine Personality
+      if (count >= 20) {
+        setPersonality({ title: 'The Speed Demon', icon: 'flash', desc: 'You tear through books like they are nothing!' });
+      } else if (topAuthEntry && topAuthEntry[1] >= 3) {
+        setPersonality({ title: 'The Loyal Fan', icon: 'heart', desc: `You really love ${topAuthEntry[0]}'s work!` });
+      } else if (count >= 10) {
+        setPersonality({ title: 'The Scholar', icon: 'school', desc: 'A dedicated reader with a wide range of interests.' });
+      } else if (count > 0) {
+        setPersonality({ title: 'The Casual Voyager', icon: 'boat', desc: 'Enjoying the journey, one page at a time.' });
+      } else {
+        setPersonality({ title: 'The Newcomer', icon: 'egg', desc: 'Your reading adventure is just beginning!' });
+      }
       
       // Trigger Yearly Animation
       const goal = yearlyGoal || 1;
@@ -277,6 +330,11 @@ export default function StatsScreen() {
         onRequestClose={() => setShowWrapped(false)}
       >
         <SafeAreaView style={[styles.wrappedContainer, { backgroundColor: colors.primary }]}>
+          {/* Confetti Burst */}
+          {showWrapped && Array.from({ length: 50 }).map((_, i) => (
+            <ConfettiPiece key={i} index={i} />
+          ))}
+
           <TouchableOpacity 
             style={styles.closeWrapped} 
             onPress={() => setShowWrapped(false)}
@@ -292,6 +350,15 @@ export default function StatsScreen() {
               <Text style={styles.wrappedLabel}>You finished</Text>
               <Text style={styles.wrappedBigNumber}>{booksReadThisYear}</Text>
               <Text style={styles.wrappedLabel}>books!</Text>
+            </View>
+
+            {/* PERSONALITY SECTION */}
+            <View style={[styles.personalityCard, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
+              <View style={styles.personalityHeader}>
+                <Ionicons name={personality.icon as any} size={32} color="white" />
+                <Text style={styles.personalityTitle}>{personality.title}</Text>
+              </View>
+              <Text style={styles.personalityDesc}>{personality.desc}</Text>
             </View>
 
             <View style={styles.wrappedRow}>
@@ -446,6 +513,33 @@ const styles = StyleSheet.create({
     width: 25,
     fontSize: 14,
     textAlign: 'right',
+  },
+  // Personality Styles
+  personalityCard: {
+    width: '100%',
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  personalityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  personalityTitle: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  personalityDesc: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+    opacity: 0.9,
+    lineHeight: 22,
   },
   // Wrapped Styles
   wrappedContainer: {
