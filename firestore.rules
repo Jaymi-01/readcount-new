@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: Is the user logged in?
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper: Does the user own the document?
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Helper: Check if the user is banned
+    function isNotBanned() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc == null || userDoc.data.get('isBanned', false) == false;
+    }
+
+    // --- USERS COLLECTION ---
+    match /users/{userId} {
+      // Anyone logged in can see profiles, but only the owner can edit
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId);
+    }
+
+    // --- BOOKS COLLECTION ---
+    match /books/{bookId} {
+      // Books are private: only the owner can see or modify them
+      // We also check isNotBanned to prevent banned users from adding new books
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isNotBanned();
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // --- CHATS & MESSAGES ---
+    match /chats/{chatId} {
+      allow read, write: if isSignedIn() && isNotBanned();
+    }
+
+    match /chats/{chatId}/messages/{messageId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isNotBanned();
+    }
+
+    // --- REPORTS ---
+    match /reports/{reportId} {
+      allow create: if isSignedIn();
+    }
+  }
+}
