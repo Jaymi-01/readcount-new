@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar, TextInput, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar, TextInput, TouchableOpacity, Modal } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 
 // --- SUB-COMPONENT FOR ANIMATED BARS ---
@@ -57,6 +58,11 @@ export default function StatsScreen() {
   const [selectedYear, setSelectedYear] = useState<number | 'All'>(new Date().getFullYear());
   const [availableYears, setAvailableYears] = useState<(number | 'All')[]>([new Date().getFullYear()]);
 
+  // Wrapped State
+  const [showWrapped, setShowWrapped] = useState(false);
+  const [topMonth, setTopMonth] = useState('');
+  const [topAuthor, setTopAuthor] = useState('');
+
   // Animation Shared Value for Yearly Progress
   const progressValue = useSharedValue(0);
 
@@ -95,6 +101,7 @@ export default function StatsScreen() {
       let count = 0;
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthCounts = new Array(12).fill(0);
+      const authors: {[key: string]: number} = {};
 
       snapshot.forEach((doc) => {
         const data = doc.data();
@@ -119,11 +126,22 @@ export default function StatsScreen() {
         if (finishDate && (selectedYear === 'All' || finishDate.getFullYear() === selectedYear)) {
           count++;
           monthCounts[finishDate.getMonth()]++;
+          if (data.author) {
+            authors[data.author] = (authors[data.author] || 0) + 1;
+          }
         }
       });
 
       setBooksReadThisYear(count);
       setMonthlyStats(months.map((m, i) => ({ month: m, count: monthCounts[i] })));
+      
+      // Calculate Top Month
+      const maxMonthIdx = monthCounts.indexOf(Math.max(...monthCounts));
+      setTopMonth(count > 0 ? months[maxMonthIdx] : 'None');
+
+      // Calculate Top Author
+      const topAuthEntry = Object.entries(authors).sort((a,b) => b[1] - a[1])[0];
+      setTopAuthor(topAuthEntry ? topAuthEntry[0] : 'None');
       
       // Trigger Yearly Animation
       const goal = yearlyGoal || 1;
@@ -184,9 +202,32 @@ export default function StatsScreen() {
 
         {/* YEARLY GOAL CARD */}
         <View style={[styles.card, { backgroundColor: theme === 'dark' ? colors.primaryLight : '#eef2ff', borderColor: colors.primary }]}>
-          <Text style={[styles.cardTitle, { color: colors.textDark }]}>
-            {selectedYear === 'All' ? 'Lifetime Library' : `${selectedYear} Reading Goal`}
-          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Text style={[styles.cardTitle, { color: colors.textDark, flex: 1 }]}>
+              {selectedYear === 'All' ? 'Lifetime Library' : `${selectedYear} Reading Goal`}
+            </Text>
+            {booksReadThisYear > 0 && selectedYear !== 'All' && (() => {
+              const now = new Date();
+              const currentYear = now.getFullYear();
+              const isDec31 = now.getMonth() === 11 && now.getDate() === 31;
+              
+              // Only show if:
+              // 1. It's a past year OR
+              // 2. It's the current year AND it's Dec 31st
+              if (selectedYear < currentYear || (selectedYear === currentYear && isDec31)) {
+                return (
+                  <TouchableOpacity 
+                    style={[styles.wrappedBtn, { backgroundColor: colors.secondary }]}
+                    onPress={() => setShowWrapped(true)}
+                  >
+                    <Ionicons name="sparkles" size={14} color="white" />
+                    <Text style={styles.wrappedBtnText}>Wrapped</Text>
+                  </TouchableOpacity>
+                );
+              }
+              return null;
+            })()}
+          </View>
           <View style={styles.goalInfo}>
             <Text style={[styles.goalNumber, { color: colors.primary }]}>{booksReadThisYear}</Text>
             {selectedYear !== 'All' && (
@@ -227,6 +268,54 @@ export default function StatsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* --- WRAPPED MODAL --- */}
+      <Modal
+        visible={showWrapped}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowWrapped(false)}
+      >
+        <SafeAreaView style={[styles.wrappedContainer, { backgroundColor: colors.primary }]}>
+          <TouchableOpacity 
+            style={styles.closeWrapped} 
+            onPress={() => setShowWrapped(false)}
+          >
+            <Ionicons name="close" size={32} color="white" />
+          </TouchableOpacity>
+
+          <ScrollView contentContainerStyle={styles.wrappedContent} showsVerticalScrollIndicator={false}>
+            <Text style={styles.wrappedYear}>{selectedYear === 'All' ? 'LIFETIME' : selectedYear}</Text>
+            <Text style={styles.wrappedTitle}>WRAPPED</Text>
+            
+            <View style={styles.wrappedMainCard}>
+              <Text style={styles.wrappedLabel}>You finished</Text>
+              <Text style={styles.wrappedBigNumber}>{booksReadThisYear}</Text>
+              <Text style={styles.wrappedLabel}>books!</Text>
+            </View>
+
+            <View style={styles.wrappedRow}>
+              <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                <Ionicons name="calendar" size={24} color={colors.secondary} />
+                <Text style={styles.wrappedSmallLabel}>Top Month</Text>
+                <Text style={styles.wrappedSmallValue}>{topMonth}</Text>
+              </View>
+              <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+                <Ionicons name="person" size={24} color={colors.secondary} />
+                <Text style={styles.wrappedSmallLabel}>Top Author</Text>
+                <Text style={styles.wrappedSmallValue} numberOfLines={1}>{topAuthor}</Text>
+              </View>
+            </View>
+
+            <View style={[styles.wrappedQuoteCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+              <Text style={styles.wrappedQuote}>"A reader lives a thousand lives before he dies."</Text>
+              <Text style={styles.wrappedQuoteAuthor}>— George R.R. Martin</Text>
+            </View>
+
+            <Text style={styles.wrappedFooter}>#ReadCountWrapped</Text>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -276,6 +365,19 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 16,
+  },
+  wrappedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
+  },
+  wrappedBtnText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   goalInfo: {
     flexDirection: 'row',
@@ -344,5 +446,104 @@ const styles = StyleSheet.create({
     width: 25,
     fontSize: 14,
     textAlign: 'right',
+  },
+  // Wrapped Styles
+  wrappedContainer: {
+    flex: 1,
+  },
+  closeWrapped: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: 24,
+    zIndex: 10,
+  },
+  wrappedContent: {
+    padding: 32,
+    alignItems: 'center',
+    paddingTop: 80,
+  },
+  wrappedYear: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: '900',
+    opacity: 0.8,
+  },
+  wrappedTitle: {
+    color: 'white',
+    fontSize: 56,
+    fontWeight: '900',
+    letterSpacing: -2,
+    marginBottom: 40,
+  },
+  wrappedMainCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 32,
+    padding: 32,
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  wrappedLabel: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  wrappedBigNumber: {
+    color: 'white',
+    fontSize: 100,
+    fontWeight: '900',
+    marginVertical: 10,
+  },
+  wrappedRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+  },
+  wrappedSmallCard: {
+    flex: 1,
+    borderRadius: 24,
+    padding: 20,
+    alignItems: 'center',
+  },
+  wrappedSmallLabel: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginTop: 8,
+    opacity: 0.8,
+  },
+  wrappedSmallValue: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  wrappedQuoteCard: {
+    width: '100%',
+    padding: 32,
+    borderRadius: 24,
+    marginBottom: 40,
+  },
+  wrappedQuote: {
+    color: 'white',
+    fontSize: 20,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    lineHeight: 28,
+  },
+  wrappedQuoteAuthor: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'right',
+    marginTop: 16,
+    opacity: 0.8,
+  },
+  wrappedFooter: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    opacity: 0.6,
   },
 });
