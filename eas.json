@@ -7,18 +7,15 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal"
-      // "channel" removed here
     },
     "preview": {
       "distribution": "internal"
-      // "channel" removed here <-- THIS WAS THE ERROR
     },
     "production": {
       "autoIncrement": true,
       "android": {
         "buildType": "apk"
       }
-      // "channel" removed here
     }
   },
   "submit": {

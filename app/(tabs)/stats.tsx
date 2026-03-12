@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar, TextInput } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, SharedValue, useDerivedValue, useAnimatedProps } from 'react-native-reanimated';
-import { TextInput } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, useAnimatedProps } from 'react-native-reanimated';
 
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 

@@ -1,9 +1,8 @@
 import { useRouter } from 'expo-router';
 import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Image } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { COLORS, darkColors } from '../constants/colors';
 import { auth, db } from '../firebaseConfig';
