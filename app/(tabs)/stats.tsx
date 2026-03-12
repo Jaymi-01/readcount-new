@@ -1,10 +1,81 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, interpolateColor } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, SharedValue, useDerivedValue, useAnimatedProps } from 'react-native-reanimated';
+import { TextInput } from 'react-native';
+
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
+
+// --- SUB-COMPONENT FOR ANIMATING NUMBERS ---
+function AnimatedNumber({ value, style }: { value: number, style: any }) {
+  const animatedValue = useSharedValue(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      animatedValue.value = 0;
+      animatedValue.value = withTiming(value, { duration: 1500 });
+    }, [value])
+  );
+
+  const animatedProps = useAnimatedProps(() => {
+    return {
+      text: `${Math.floor(animatedValue.value)}`,
+    } as any;
+  });
+
+  return (
+    <AnimatedTextInput
+      underlineColorAndroid="transparent"
+      editable={false}
+      multiline={false}
+      value={`${value}`} // Static fallback
+      style={[style, { padding: 0, margin: 0, textAlignVertical: 'center', includeFontPadding: false }]}
+      animatedProps={animatedProps}
+    />
+  );
+}
+
+// --- SUB-COMPONENT FOR ANIMATED BARS ---
+function PollBar({ 
+  index, 
+  count, 
+  relativeValue, 
+  theme 
+}: { 
+  index: number, 
+  count: number, 
+  relativeValue: number, 
+  theme: string 
+}) {
+  const barWidth = useSharedValue(0);
+  
+  useFocusEffect(
+    useCallback(() => {
+      barWidth.value = 0;
+      barWidth.value = withTiming(relativeValue, { duration: 1000 });
+    }, [relativeValue])
+  );
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const intensity = barWidth.value > 0 ? 0.3 + barWidth.value * 0.7 : 0;
+    const baseColor = theme === 'dark' ? '129, 140, 248' : '99, 102, 241';
+    
+    return {
+      width: `${barWidth.value * 100}%`,
+      backgroundColor: `rgba(${baseColor}, ${intensity})`,
+    };
+  });
+
+  return (
+    <View style={[styles.barContainer, { backgroundColor: theme === 'dark' ? '#1e293b' : '#f1f5f9' }]}>
+      <Animated.View style={[styles.monthBar, animatedStyle]} />
+    </View>
+  );
+}
 
 export default function StatsScreen() {
   const { theme } = useTheme();
@@ -16,9 +87,8 @@ export default function StatsScreen() {
   const [yearlyGoal, setYearlyGoal] = useState(0);
   const [monthlyStats, setMonthlyStats] = useState<{month: string, count: number}[]>([]);
 
-  // Animation Shared Values
+  // Animation Shared Value for Yearly Progress
   const progressValue = useSharedValue(0);
-  const monthMaxValues = useSharedValue<number[]>(new Array(12).fill(0));
 
   useEffect(() => {
     if (!user) return;
@@ -73,12 +143,9 @@ export default function StatsScreen() {
       setBooksReadThisYear(count);
       setMonthlyStats(months.map((m, i) => ({ month: m, count: monthCounts[i] })));
       
-      // Trigger Animations
-      const goal = yearlyGoal || 1; // Avoid divide by zero
+      // Trigger Yearly Animation
+      const goal = yearlyGoal || 1;
       progressValue.value = withSpring(Math.min(count / goal, 1), { damping: 15 });
-      
-      const maxMonthly = Math.max(...monthCounts, 1);
-      monthMaxValues.value = withTiming(monthCounts.map(c => c / maxMonthly), { duration: 1000 });
       
       setLoading(false);
     });
@@ -98,6 +165,8 @@ export default function StatsScreen() {
     );
   }
 
+  const maxCount = Math.max(...monthlyStats.map(s => s.count), 1);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -107,7 +176,7 @@ export default function StatsScreen() {
         </View>
 
         {/* YEARLY GOAL CARD */}
-        <Animated.View style={[styles.card, { backgroundColor: theme === 'dark' ? colors.primaryLight : '#eef2ff', borderColor: colors.primary }]}>
+        <View style={[styles.card, { backgroundColor: theme === 'dark' ? colors.primaryLight : '#eef2ff', borderColor: colors.primary }]}>
           <Text style={[styles.cardTitle, { color: colors.textDark }]}>Annual Reading Goal</Text>
           <View style={styles.goalInfo}>
             <Text style={[styles.goalNumber, { color: colors.primary }]}>{booksReadThisYear}</Text>
@@ -115,7 +184,7 @@ export default function StatsScreen() {
           </View>
           
           <View style={[styles.progressBarBg, { backgroundColor: colors.white }]}>
-            <Animated.View style={[styles.progressBarFill, { backgroundColor: colors.primary }, animatedProgressStyle]} />
+            <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: `${(booksReadThisYear / (yearlyGoal || 1)) * 100}%` }]} />
           </View>
           
           <Text style={[styles.progressText, { color: colors.textDark, fontWeight: '700' }]}>
@@ -123,43 +192,27 @@ export default function StatsScreen() {
               ? `${Math.round((booksReadThisYear / (yearlyGoal || 1)) * 100)}% of your goal reached!` 
               : "Set a goal in Settings to track progress!"}
           </Text>
-        </Animated.View>
+        </View>
 
         {/* MONTHLY ACTIVITY (POLL STYLE) */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textDark }]}>Monthly Activity</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, paddingVertical: 24 }]}>
-            {monthlyStats.map((item, index) => {
-              const maxCount = Math.max(...monthlyStats.map(s => s.count), 1);
-              
-              const animatedBarStyle = useAnimatedStyle(() => {
-                const intensity = monthMaxValues.value[index] > 0 ? 0.3 + monthMaxValues.value[index] * 0.7 : 0;
-                const baseColor = theme === 'dark' ? '129, 140, 248' : '99, 102, 241';
-                
-                return {
-                  width: `${monthMaxValues.value[index] * 100}%`,
-                  backgroundColor: `rgba(${baseColor}, ${intensity})`,
-                };
-              });
-
-              return (
-                <View key={item.month} style={styles.monthRow}>
-                  <Text style={[styles.monthName, { color: colors.textDark }]}>{item.month}</Text>
-                  <View style={styles.pollTrack}>
-                    <View style={[styles.barContainer, { backgroundColor: theme === 'dark' ? '#1e293b' : '#f1f5f9' }]}>
-                      <Animated.View style={[styles.monthBar, animatedBarStyle]} />
-                    </View>
-                    <Text style={[styles.monthCount, { color: colors.textDark, fontWeight: '700' }]}>{item.count}</Text>
-                  </View>
+            {monthlyStats.map((item, index) => (
+              <View key={item.month} style={styles.monthRow}>
+                <Text style={[styles.monthName, { color: colors.textDark }]}>{item.month}</Text>
+                <View style={styles.pollTrack}>
+                  <PollBar 
+                    index={index} 
+                    count={item.count} 
+                    relativeValue={item.count / maxCount} 
+                    theme={theme} 
+                  />
+                  <AnimatedNumber value={item.count} style={[styles.monthCount, { color: colors.textDark, fontWeight: '700' }]} />
                 </View>
-              );
-            })}
+              </View>            ))}
           </View>
         </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
       </ScrollView>
     </SafeAreaView>
   );
