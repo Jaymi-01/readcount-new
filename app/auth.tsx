@@ -3,6 +3,7 @@ import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmail
 import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { COLORS, darkColors } from '../constants/colors';
 import { auth, db } from '../firebaseConfig';
@@ -184,6 +185,13 @@ export default function AuthScreen() {
     if (mode === 'signup') {
       return (
         <View style={styles.form}>
+          <View style={styles.logoContainer}>
+            <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
+              <Ionicons name="book" size={40} color="white" />
+            </View>
+            <Text style={[styles.appName, { color: colors.textDark }]}>ReadCount</Text>
+          </View>
+
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.textDark }]}>Create Account</Text>
             <Text style={[styles.subtitle, { color: colors.textLight }]}>Sign up to get started</Text>
@@ -238,6 +246,13 @@ export default function AuthScreen() {
     if (mode === 'forgot') {
       return (
         <View style={styles.form}>
+          <View style={styles.logoContainer}>
+            <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
+              <Ionicons name="book" size={40} color="white" />
+            </View>
+            <Text style={[styles.appName, { color: colors.textDark }]}>ReadCount</Text>
+          </View>
+
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.textDark }]}>Forgot Password?</Text>
             <Text style={[styles.subtitle, { color: colors.textLight }]}>
@@ -295,6 +310,13 @@ export default function AuthScreen() {
     // -------------------------------------------------------------------------
     return (
       <View style={styles.form}>
+        <View style={styles.logoContainer}>
+          <View style={[styles.logoIcon, { backgroundColor: colors.primary }]}>
+            <Ionicons name="book" size={40} color="white" />
+          </View>
+          <Text style={[styles.appName, { color: colors.textDark }]}>ReadCount</Text>
+        </View>
+
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.textDark }]}>Welcome Back</Text>
           <Text style={[styles.subtitle, { color: colors.textLight }]}>Sign in to continue</Text>
@@ -419,11 +441,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 12,
     marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
   },
   buttonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  logoIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  appName: {
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.5,
   },
   footer: {
     flexDirection: 'row',

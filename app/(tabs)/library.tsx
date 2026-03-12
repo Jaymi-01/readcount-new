@@ -507,15 +507,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   tab: {
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'transparent', // Can add border if inactive needed
+    borderColor: 'transparent',
   },
   tabText: {
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 14,
   },
   listContent: {
     paddingHorizontal: 16,
@@ -587,12 +588,17 @@ const styles = StyleSheet.create({
   // Book Card
   bookCard: {
     flexDirection: 'row',
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 12,
+    padding: 20,
+    marginBottom: 16,
+    borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
   bookInfo: {
     flex: 1,
