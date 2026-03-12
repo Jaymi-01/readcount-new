@@ -70,10 +70,10 @@ export default function StatsScreen() {
         if (userDoc.exists()) {
           setYearlyGoal(userDoc.data().readingGoal || 0);
           
-          const startYear = userDoc.data().dateAdded?.toDate ? userDoc.data().dateAdded.toDate().getFullYear() : new Date().getFullYear();
+          const startYear = userDoc.data().dateAdded?.toDate ? userDoc.data().dateAdded.toDate().getFullYear() : 2025;
           const currentYear = new Date().getFullYear();
           const years: (number | 'All')[] = ['All'];
-          for (let y = currentYear; y >= Math.min(startYear, 2024); y--) {
+          for (let y = currentYear; y >= Math.min(startYear, 2025); y--) {
             years.push(y);
           }
           setAvailableYears(years);
@@ -100,15 +100,19 @@ export default function StatsScreen() {
         const data = doc.data();
         let finishDate: Date | null = null;
         
-        if (data.dateFinished?.toDate) {
-          finishDate = data.dateFinished.toDate();
-        } else if (data.dateFinished?.seconds) {
-          finishDate = new Date(data.dateFinished.seconds * 1000);
-        } 
-        else if (data.dateAdded?.toDate) {
-          finishDate = data.dateAdded.toDate();
-        } else if (data.dateAdded?.seconds) {
-          finishDate = new Date(data.dateAdded.seconds * 1000);
+        const rawDate = data.dateFinished || data.dateAdded;
+
+        if (rawDate) {
+          if (typeof rawDate.toDate === 'function') {
+            finishDate = rawDate.toDate();
+          } else if (rawDate.seconds) {
+            finishDate = new Date(rawDate.seconds * 1000);
+          } else {
+            const d = new Date(rawDate);
+            if (!isNaN(d.getTime())) {
+              finishDate = d;
+            }
+          }
         }
 
         // Filter by selected year OR show all if 'All' is selected
