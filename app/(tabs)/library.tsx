@@ -10,6 +10,7 @@ import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import Toast from 'react-native-toast-message';
+import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 
 // --- TYPES ---
 type BookStatus = 'read' | 'reading' | 'toread';
@@ -259,7 +260,7 @@ export default function LibraryScreen() {
     }
   };
 
-  const renderBookItem = ({ item }: { item: Book }) => {
+  const renderBookItem = ({ item, index }: { item: Book, index: number }) => {
     // Migration display logic
     let displayRating = item.rating || 0;
     if (!displayRating && item.review === 'good') displayRating = 5;
@@ -285,7 +286,11 @@ export default function LibraryScreen() {
     }
 
     return (
-      <View style={[styles.bookCard, { backgroundColor: getCardBackground(item.status), borderColor: getCardBorder(item.status) }]}>
+      <Animated.View 
+        entering={FadeInDown.delay(index * 100).springify()}
+        layout={Layout.springify()}
+        style={[styles.bookCard, { backgroundColor: getCardBackground(item.status), borderColor: getCardBorder(item.status) }]}
+      >
         <View style={styles.bookInfo}>
           <Text style={[styles.bookTitle, { color: colors.textDark }]}>{item.title}</Text>
           <Text style={[styles.bookAuthor, { color: colors.textLight }]}>{item.author}</Text>
@@ -306,7 +311,7 @@ export default function LibraryScreen() {
             <Ionicons name="trash-outline" size={20} color={colors.danger} />
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
