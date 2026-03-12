@@ -23,6 +23,7 @@ interface Book {
   review?: string; // Legacy support ("good", "bad")
   userId: string;
   dateAdded: any;
+  dateFinished?: any;
 }
 
 export default function LibraryScreen() {
@@ -124,24 +125,37 @@ export default function LibraryScreen() {
     try {
       if (editingBook) {
         // UPDATE
-        await updateDoc(doc(db, 'books', editingBook.id), {
+        const updateData: any = {
           title,
           author,
           status,
           rating,
-          review: null, // Clear legacy field if updating
-        });
+          review: null,
+        };
+
+        // If status changed to 'read' and it wasn't read before, or if it's already read but has no dateFinished
+        if (status === 'read' && (editingBook.status !== 'read' || !editingBook.dateFinished)) {
+          updateData.dateFinished = Timestamp.now();
+        }
+
+        await updateDoc(doc(db, 'books', editingBook.id), updateData);
         Toast.show({ type: 'success', text1: 'Updated', text2: 'Book updated successfully.' });
       } else {
         // CREATE
-        await addDoc(collection(db, 'books'), {
+        const bookData: any = {
           userId: user?.uid,
           title,
           author,
           status,
           rating,
           dateAdded: Timestamp.now(),
-        });
+        };
+
+        if (status === 'read') {
+          bookData.dateFinished = Timestamp.now();
+        }
+
+        await addDoc(collection(db, 'books'), bookData);
         Toast.show({ type: 'success', text1: 'Added', text2: 'Book added to your library.' });
       }
       setModalVisible(false);
