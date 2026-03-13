@@ -17,28 +17,56 @@ interface Achievement {
   icon: any;
   unlocked: boolean;
   unlockedAt?: any;
+  progress?: number;
+  total?: number;
 }
 
-const ACHIEVEMENT_DEFINITIONS = [
+const ACHIEVEMENT_DEFINITIONS: any[] = [
+  // Basics & Goals
   { id: 'first_step', title: 'First Step', desc: 'Mark your first book as read', howToEarn: 'marking your first book as finished.', icon: 'footsteps' },
   { id: 'the_finisher', title: 'The Finisher', desc: 'Reach your annual reading goal', howToEarn: 'completing your annual reading goal!', icon: 'trophy' },
   { id: 'night_owl', title: 'Night Owl', desc: 'Add a book after 11 PM', howToEarn: 'starting a new book late at night.', icon: 'moon' },
-  { id: 'author_bestie', title: "Author's Bestie", desc: 'Read 5 books by one author', howToEarn: 'reading 5 books by the same author.', icon: 'people' },
-  { id: 'speedy_reader', title: 'Speedy Reader', desc: 'Finish 5 books in a month', howToEarn: 'finishing 5 books in a single month.', icon: 'bicycle' },
-  { id: 'speed_demon', title: 'Speed Demon', desc: 'Finish 10 books in a month', howToEarn: 'finishing 10 books in a single month.', icon: 'flash' },
-  { id: 'speed_god', title: 'Speed God', desc: 'Finish 30 books in a month', howToEarn: 'finishing 30 books in a single month! Absolute legend.', icon: 'flame' },
-  { id: 'the_polymath', title: 'The Polymath', desc: 'Read 5 different authors', howToEarn: 'reading books from 5 different authors.', icon: 'globe' },
-  { id: 'the_critic', title: 'The Critic', desc: 'Rate 10 books', howToEarn: 'sharing your opinion and rating 10 books.', icon: 'star' },
-  { id: 'indecisive', title: 'Indecisive', desc: 'Have 3 books in To-Read', howToEarn: 'having 3 books in your To-Read list.', icon: 'help-circle' },
-  { id: 'cant_make_up_mind', title: "Can't Make Up Your Mind", desc: 'Have 5 books in To-Read', howToEarn: 'having 5 books in your To-Read list.', icon: 'git-branch' },
-  { id: 'the_archivist', title: 'The Archivist', desc: 'Have 10 books in To-Read', howToEarn: 'having 10 books in your To-Read list.', icon: 'library' },
+  
+  // Speed (Monthly)
+  { id: 'speedy_reader', title: 'Speedy Reader', desc: 'Finish 5 books in a month', howToEarn: 'finishing 5 books in a single month.', icon: 'bicycle', total: 5 },
+  { id: 'speed_demon', title: 'Speed Demon', desc: 'Finish 10 books in a month', howToEarn: 'finishing 10 books in a single month.', icon: 'flash', total: 10 },
+  { id: 'speed_god', title: 'Speed God', desc: 'Finish 30 books in a month', howToEarn: 'finishing 30 books in a single month! Absolute legend.', icon: 'flame', total: 30 },
+  
+  // Variety & Authors
+  { id: 'author_bestie', title: "Author's Bestie", desc: 'Read 5 books by one author', howToEarn: 'reading 5 books by the same author.', icon: 'people', total: 5 },
+  { id: 'the_polymath', title: 'The Polymath', desc: 'Read 5 different authors', howToEarn: 'reading books from 5 different authors.', icon: 'globe', total: 5 },
+  { id: 'variety_king', title: 'Variety King', desc: 'Read 10 different authors', howToEarn: 'reading books from 10 different authors.', icon: 'color-palette', total: 10 },
+  
+  // Critics & Reviews
+  { id: 'the_critic', title: 'The Critic', desc: 'Rate 10 books', howToEarn: 'sharing your opinion and rating 10 books.', icon: 'star', total: 10 },
+  { id: 'super_critic', title: 'Super Critic', desc: 'Rate 25 books', howToEarn: 'sharing your opinion and rating 25 books.', icon: 'star-half', total: 25 },
+  { id: 'consistent_reader', title: 'Monthly Streak', desc: 'Read at least 1 book for 3 months', howToEarn: 'finishing at least one book for 3 months in a row.', icon: 'calendar', total: 3 },
+
+  // Collection Size
+  { id: 'indecisive', title: 'Indecisive', desc: 'Have 3 books in To-Read', howToEarn: 'having 3 books in your To-Read list.', icon: 'help-circle', total: 3 },
+  { id: 'cant_make_up_mind', title: "Can't Make Up Your Mind", desc: 'Have 5 books in To-Read', howToEarn: 'having 5 books in your To-Read list.', icon: 'git-branch', total: 5 },
+  { id: 'the_archivist', title: 'The Archivist', desc: 'Have 10 books in To-Read', howToEarn: 'having 10 books in your To-Read list.', icon: 'library', total: 10 },
 ];
 
 function TrophyItem({ item, colors, onDetails }: { item: Achievement, colors: any, onDetails: (a: Achievement) => void }) {
   const scale = useSharedValue(1);
+  const glowOpacity = useSharedValue(0.4);
+
+  useEffect(() => {
+    if (item.unlocked) {
+      glowOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.8, { duration: 1500 }),
+          withTiming(0.4, { duration: 1500 })
+        ),
+        -1, true
+      );
+    }
+  }, [item.unlocked]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
+    shadowOpacity: item.unlocked ? glowOpacity.value : 0,
   }));
 
   const handlePress = () => {
@@ -54,17 +82,36 @@ function TrophyItem({ item, colors, onDetails }: { item: Achievement, colors: an
     >
       <Animated.View style={[
         styles.trophyCircle, 
-        { backgroundColor: item.unlocked ? colors.primary : 'rgba(0,0,0,0.05)', borderColor: item.unlocked ? colors.primary : colors.border },
+        { 
+          backgroundColor: item.unlocked ? colors.primary : 'rgba(0,0,0,0.05)', 
+          borderColor: item.unlocked ? colors.primary : colors.border,
+          shadowColor: colors.primary,
+        },
         animatedStyle
       ]}>
         <Ionicons name={item.icon} size={28} color={item.unlocked ? '#FFF' : colors.textLight} />
-        {item.unlocked && (
+        
+        {/* FINISHER STREAK BADGE */}
+        {item.id === 'the_finisher' && item.unlocked && item.progress && item.progress > 0 && (
+          <View style={[styles.streakBadge, { backgroundColor: colors.secondary }]}>
+            <Text style={styles.streakText}>{item.progress}</Text>
+          </View>
+        )}
+
+        {item.unlocked && item.id !== 'the_finisher' && (
           <View style={[styles.miniBadge, { backgroundColor: colors.success }]}>
             <Ionicons name="checkmark" size={8} color="white" />
           </View>
         )}
       </Animated.View>
       <Text style={[styles.trophyLabel, { color: colors.textDark }]} numberOfLines={2}>{item.title}</Text>
+      
+      {/* PROGRESS TEXT */}
+      {!item.unlocked && item.total && (
+        <Text style={[styles.progressCount, { color: colors.textLight }]}>
+          {item.progress || 0} / {item.total}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -75,13 +122,13 @@ export default function AchievementsScreen() {
   const user = auth.currentUser;
 
   const [unlockedData, setUnlockedData] = useState<{[key: string]: any}>({});
+  const [liveProgress, setLiveProgress] = useState<{[key: string]: number}>({});
   const [loading, setLoading] = useState(true);
   
   // Modal State
   const [selectedAch, setSelectedAch] = useState<Achievement | null>(null);
   const [showModal, setShowModal] = useState(false);
 
-  // --- BACKFILL LOGIC FOR ADMIN ---
   const backfillAchievements = async () => {
     if (!user || user.email !== 'millerjoel7597@gmail.com') return;
 
@@ -124,7 +171,6 @@ export default function AchievementsScreen() {
           uniqueAuthors.add(b.author);
           polyAuthorCount++;
           if (polyAuthorCount === 5) {
-            // Special override for Miller Joel to ensure it shows Dec 2025
             if (user.email === 'millerjoel7597@gmail.com' && b.processedDate.getFullYear() === 2026) {
                toUnlock['the_polymath'] = Timestamp.fromDate(new Date(2025, 11, 15));
             } else {
@@ -134,50 +180,43 @@ export default function AchievementsScreen() {
         }
       }
 
-      // 5. Critic (10 Ratings - Use date of the 10th rated book)
-      // Check for either a numeric rating > 0 OR a legacy review ('good'/'bad')
       const ratedBooks = readBooks.filter(b => (b.rating && b.rating > 0) || b.review === 'good' || b.review === 'bad');
       if (ratedBooks.length >= 10) {
         toUnlock['the_critic'] = Timestamp.fromDate(ratedBooks[9].processedDate);
       }
-const authorGroups: any = {};
-for (const b of readBooks) {
-  authorGroups[b.author] = (authorGroups[b.author] || 0) + 1;
-  if (authorGroups[b.author] === 5) {
-    toUnlock['author_bestie'] = Timestamp.fromDate(b.processedDate);
-  }
-}
 
-// 7. Speed Achievements (Scan every month in history)
-const monthlyGroups: any = {};
-readBooks.forEach(b => {
-  const key = `${b.processedDate.getFullYear()}-${b.processedDate.getMonth()}`;
-  if (!monthlyGroups[key]) monthlyGroups[key] = [];
-  monthlyGroups[key].push(b);
-});
+      const authorGroups: any = {};
+      for (const b of readBooks) {
+        authorGroups[b.author] = (authorGroups[b.author] || 0) + 1;
+        if (authorGroups[b.author] === 5) {
+          toUnlock['author_bestie'] = Timestamp.fromDate(b.processedDate);
+        }
+      }
 
-Object.values(monthlyGroups).forEach((books: any) => {
-  const mCount = books.length;
-  const lastBookDate = Timestamp.fromDate(books[books.length - 1].processedDate);
+      const monthlyGroups: any = {};
+      readBooks.forEach(b => {
+        const key = `${b.processedDate.getFullYear()}-${b.processedDate.getMonth()}`;
+        if (!monthlyGroups[key]) monthlyGroups[key] = [];
+        monthlyGroups[key].push(b);
+      });
 
-  if (mCount >= 30) toUnlock['speed_god'] = lastBookDate;
-  if (mCount >= 10) toUnlock['speed_demon'] = lastBookDate;
-  if (mCount >= 5) toUnlock['speedy_reader'] = lastBookDate;
-});
+      Object.values(monthlyGroups).forEach((books: any) => {
+        const mCount = books.length;
+        const lastBookDate = Timestamp.fromDate(books[books.length - 1].processedDate);
+        if (mCount >= 30) toUnlock['speed_god'] = lastBookDate;
+        if (mCount >= 10) toUnlock['speed_demon'] = lastBookDate;
+        if (mCount >= 5) toUnlock['speedy_reader'] = lastBookDate;
+      });
 
-// Perform unlock updates
       for (const [id, unlockedAt] of Object.entries(toUnlock)) {
         const achRef = doc(db, 'users', user.uid, 'achievements', id);
         const achSnap = await getDoc(achRef);
-        
         if (!achSnap.exists()) {
           await setDoc(achRef, { unlocked: true, unlockedAt });
         } else {
           const data = achSnap.data();
           const existingDate = data.unlockedAt?.toDate ? data.unlockedAt.toDate() : new Date(data.unlockedAt?.seconds * 1000);
           const newDate = unlockedAt.toDate();
-          
-          // Force fix: if we have a 2026 date but found a 2025 historical date, update it.
           if (existingDate.getFullYear() === 2026 && newDate.getFullYear() === 2025) {
             await setDoc(achRef, { unlocked: true, unlockedAt });
           }
@@ -196,26 +235,89 @@ Object.values(monthlyGroups).forEach((books: any) => {
 
     backfillAchievements();
 
-    const q = query(collection(db, 'users', user.uid, 'achievements'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const qAch = query(collection(db, 'users', user.uid, 'achievements'));
+    const unsubscribeAch = onSnapshot(qAch, (snapshot) => {
       const data: any = {};
       snapshot.forEach(doc => {
         data[doc.id] = doc.data();
       });
       setUnlockedData(data);
-      setLoading(false);
-    }, (error) => {
-      console.error("Achievements fetch error:", error);
+    });
+
+    const qBooks = query(collection(db, 'books'), where('userId', '==', user.uid));
+    const unsubscribeBooks = onSnapshot(qBooks, (snapshot) => {
+      const allBooks = snapshot.docs.map(d => d.data());
+      const readBooks = allBooks.filter(b => b.status === 'read');
+      const toReadCount = allBooks.filter(b => b.status === 'toread').length;
+      
+      const prog: any = {};
+      prog['indecisive'] = Math.min(toReadCount, 3);
+      prog['cant_make_up_mind'] = Math.min(toReadCount, 5);
+      prog['the_archivist'] = Math.min(toReadCount, 10);
+
+      const uniqueAuthorsCount = new Set(readBooks.map(b => b.author)).size;
+      prog['the_polymath'] = Math.min(uniqueAuthorsCount, 5);
+      prog['variety_king'] = Math.min(uniqueAuthorsCount, 10);
+
+      const ratedCount = readBooks.filter(b => (b.rating && b.rating > 0) || b.review === 'good' || b.review === 'bad').length;
+      prog['the_critic'] = Math.min(ratedCount, 10);
+      prog['super_critic'] = Math.min(ratedCount, 25);
+
+      const now = new Date();
+      const thisMonthCount = readBooks.filter(b => {
+        let d = b.dateFinished || b.dateAdded;
+        if (d?.toDate) d = d.toDate();
+        else if (d?.seconds) d = new Date(d.seconds * 1000);
+        else d = new Date(d);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }).length;
+      prog['speedy_reader'] = Math.min(thisMonthCount, 5);
+      prog['speed_demon'] = Math.min(thisMonthCount, 10);
+      prog['speed_god'] = Math.min(thisMonthCount, 30);
+
+      const authorCounts: any = {};
+      readBooks.forEach(b => authorCounts[b.author] = (authorCounts[b.author] || 0) + 1);
+      const maxAuthorCount = Math.max(...(Object.values(authorCounts) as number[]), 0);
+      prog['author_bestie'] = Math.min(maxAuthorCount, 5);
+
+      const monthMap: any = {};
+      readBooks.forEach(b => {
+        let d = b.dateFinished || b.dateAdded;
+        if (d?.toDate) d = d.toDate();
+        else if (d?.seconds) d = new Date(d.seconds * 1000);
+        else d = new Date(d);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        monthMap[key] = true;
+      });
+
+      let streak = 0;
+      let checkDate = new Date();
+      if (!monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) {
+        checkDate.setMonth(checkDate.getMonth() - 1);
+      }
+      for (let i = 0; i < 12; i++) {
+        if (monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) {
+          streak++;
+          checkDate.setMonth(checkDate.getMonth() - 1);
+        } else break;
+      }
+      prog['consistent_reader'] = Math.min(streak, 3);
+
+      setLiveProgress(prog);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAch();
+      unsubscribeBooks();
+    };
   }, [user]);
 
   const achievements: Achievement[] = ACHIEVEMENT_DEFINITIONS.map(def => ({
     ...def,
     unlocked: !!unlockedData[def.id],
-    unlockedAt: unlockedData[def.id]?.unlockedAt
+    unlockedAt: unlockedData[def.id]?.unlockedAt,
+    progress: liveProgress[def.id] || 0,
   }));
 
   const openDetails = (ach: Achievement) => {
@@ -247,13 +349,7 @@ Object.values(monthlyGroups).forEach((books: any) => {
         </View>
       </ScrollView>
 
-      {/* DETAIL MODAL */}
-      <Modal
-        visible={showModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowModal(false)}
-      >
+      <Modal visible={showModal} transparent animationType="fade" onRequestClose={() => setShowModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             {selectedAch && (
@@ -261,38 +357,15 @@ Object.values(monthlyGroups).forEach((books: any) => {
                 <View style={[styles.modalIconContainer, { backgroundColor: colors.primaryLight }]}>
                   <Ionicons name={selectedAch.icon} size={48} color={colors.primary} />
                 </View>
-                
                 <Text style={[styles.unlockedDate, { color: colors.textLight }]}>
-                  {(() => {
-                    if (!selectedAch.unlocked) return 'Locked';
-                    if (!selectedAch.unlockedAt) return 'Unlocked';
-                    const d = selectedAch.unlockedAt.toDate ? selectedAch.unlockedAt.toDate() : new Date(selectedAch.unlockedAt.seconds * 1000);
-                    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-                  })()}
+                  {!selectedAch.unlocked ? 'Locked' : (selectedAch.unlockedAt?.toDate ? selectedAch.unlockedAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unlocked')}
                 </Text>
-
                 <Text style={[styles.modalTitle, { color: colors.textDark }]}>
-                  {selectedAch.unlocked ? (
-                    <>You earned <Text style={{ color: colors.primary }}>{selectedAch.title}</Text></>
-                  ) : (
-                    <Text style={{ color: colors.textLight }}>{selectedAch.title}</Text>
-                  )}
+                  {selectedAch.unlocked ? (<>You earned <Text style={{ color: colors.primary }}>{selectedAch.title}</Text></>) : (<Text style={{ color: colors.textLight }}>{selectedAch.title}</Text>)}
                 </Text>
-
-                <Text style={[styles.modalHow, { color: colors.textLight }]}>
-                  {selectedAch.unlocked 
-                    ? `by ${selectedAch.howToEarn}`
-                    : "Keep reading to unlock this achievement!"
-                  }
-                </Text>
-
-                <TouchableOpacity 
-                  style={[styles.closeBtn, { backgroundColor: selectedAch.unlocked ? colors.primary : colors.textLight }]}
-                  onPress={() => setShowModal(false)}
-                >
-                  <Text style={styles.closeBtnText}>
-                    {selectedAch.unlocked ? "Awesome!" : "I'm on it!"}
-                  </Text>
+                <Text style={[styles.modalHow, { color: colors.textLight }]}>{selectedAch.unlocked ? `by ${selectedAch.howToEarn}` : "Keep reading to unlock this achievement!"}</Text>
+                <TouchableOpacity style={[styles.closeBtn, { backgroundColor: selectedAch.unlocked ? colors.primary : colors.textLight }]} onPress={() => setShowModal(false)}>
+                  <Text style={styles.closeBtnText}>{selectedAch.unlocked ? "Awesome!" : "I'm on it!"}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -304,122 +377,23 @@ Object.values(monthlyGroups).forEach((books: any) => {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
-  header: {
-    padding: 24,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-  },
-  trophyItem: {
-    width: (SCREEN_WIDTH - 32) / 3,
-    alignItems: 'center',
-    marginBottom: 24,
-    paddingHorizontal: 4,
-  },
-  trophyCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    marginBottom: 8,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  miniBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
-  },
-  trophyLabel: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    lineHeight: 14,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  modalContent: {
-    width: '100%',
-    borderRadius: 32,
-    padding: 32,
-    alignItems: 'center',
-  },
-  modalIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  unlockedDate: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 8,
-    opacity: 0.6,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  modalHow: {
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-  },
-  closeBtn: {
-    width: '100%',
-    height: 56,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeBtnText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  container: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+  scrollContent: { padding: 16, paddingBottom: 100 },
+  header: { padding: 24, paddingBottom: 8 },
+  headerTitle: { fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: 14, fontWeight: '600', marginTop: 4 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start' },
+  trophyItem: { width: (SCREEN_WIDTH - 32) / 3, alignItems: 'center', marginBottom: 24, paddingHorizontal: 4 },
+  trophyCircle: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginBottom: 8, elevation: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  miniBadge: { position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
+  trophyLabel: { fontSize: 11, fontWeight: 'bold', textAlign: 'center', lineHeight: 14 },
+  progressCount: { fontSize: 10, fontWeight: '700', marginTop: 2 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 32 },
+  modalContent: { width: '100%', borderRadius: 32, padding: 32, alignItems: 'center' },
+  modalIconContainer: { width: 100, height: 100, borderRadius: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  unlockedDate: { fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8, opacity: 0.6 },
+  modalTitle: { fontSize: 22, fontWeight: '800', textAlign: 'center', marginBottom: 12 },
+  modalHow: { fontSize: 16, textAlign: 'center', lineHeight: 22, marginBottom: 32 },
+  closeBtn: { width: '100%', height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+  closeBtnText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
 });
