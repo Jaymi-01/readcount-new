@@ -16,6 +16,7 @@ function ConfettiPiece({ index }: { index: number }) {
   const x = useSharedValue(Math.random() * SCREEN_WIDTH);
   const y = useSharedValue(-20);
   const rotate = useSharedValue(0);
+  const opacity = useSharedValue(1);
   const colors = [
     '#6366f1', '#f43f5e', '#10b981', '#f59e0b', 
     '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'
@@ -23,12 +24,10 @@ function ConfettiPiece({ index }: { index: number }) {
   const color = colors[index % colors.length];
 
   useEffect(() => {
-    y.value = withTiming(SCREEN_HEIGHT + 20, { 
-      duration: 2500 + Math.random() * 3000 
-    });
-    rotate.value = withTiming(Math.random() * 1000, { 
-      duration: 3000 + Math.random() * 2000 
-    });
+    const duration = 2500 + Math.random() * 3000;
+    y.value = withTiming(SCREEN_HEIGHT + 20, { duration });
+    rotate.value = withTiming(Math.random() * 1000, { duration });
+    opacity.value = withTiming(0, { duration });
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -37,6 +36,7 @@ function ConfettiPiece({ index }: { index: number }) {
       { translateY: y.value },
       { rotate: `${rotate.value}deg` }
     ],
+    opacity: opacity.value,
     backgroundColor: color,
     position: 'absolute',
     width: 10,
