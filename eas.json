@@ -9,16 +9,14 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      },
-      "preInstall": "echo $GOOGLE_SERVICES_BASE64 | base64 -d > google-services.json"
+      }
     },
     "production": {
       "environment": "preview",
       "autoIncrement": true,
       "android": {
         "buildType": "apk"
-      },
-      "preInstall": "echo $GOOGLE_SERVICES_BASE64 | base64 -d > google-services.json"
+      }
     }
   },
   "submit": {
