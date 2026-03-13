@@ -39,7 +39,22 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-secure-store",
+      [
+        "expo-widgets",
+        {
+          "widgets": [
+            {
+              "name": "ReadingProgress",
+              "src": "./widgets/index.tsx",
+              "description": "Shows your yearly reading progress",
+              "minWidth": "100dp",
+              "minHeight": "100dp"
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
