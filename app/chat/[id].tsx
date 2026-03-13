@@ -111,7 +111,7 @@ export default function ChatScreen() {
         headerTitleAlign: 'center',
         headerTintColor: colors.textDark,
         headerStyle: { backgroundColor: colors.card },
-        headerTitleStyle: { fontWeight: '900', fontSize: 18, letterSpacing: -0.5 },
+        headerTitleStyle: { fontWeight: '900', fontSize: 18 },
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
             <Ionicons name="chevron-back" size={28} color={colors.textDark} />
