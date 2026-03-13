@@ -8,6 +8,7 @@ import { COLORS, darkColors } from '../../constants/colors';
 import { auth, db } from '../../firebaseConfig';
 import { useTheme } from '../context/ThemeContext';
 import Toast from 'react-native-toast-message';
+import { syncWidget } from '../../utils/widgetSync';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -175,6 +176,39 @@ export default function StatsScreen() {
 
       setBooksReadThisYear(count);
       setMonthlyStats(months.map((m, i) => ({ month: m, count: monthCounts[i] })));
+      
+      // --- WIDGET SYNC ---
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      
+      // Calculate books read SPECIFICALLY for the current year (ignoring selectedYear filter for widget)
+      let widgetBooksRead = 0;
+      let latestTitle = 'No books yet';
+      let latestDate = 0;
+
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        let fDate: Date | null = null;
+        const rd = d.dateFinished || d.dateAdded;
+        if (rd?.toDate) fDate = rd.toDate();
+        else if (rd?.seconds) fDate = new Date(rd.seconds * 1000);
+        else fDate = new Date(rd);
+
+        if (fDate && fDate.getFullYear() === currentYear) {
+          widgetBooksRead++;
+          if (fDate.getTime() > latestDate) {
+            latestDate = fDate.getTime();
+            latestTitle = d.title;
+          }
+        }
+      });
+
+      syncWidget({
+        booksRead: widgetBooksRead,
+        goal: yearlyGoal,
+        lastBook: latestTitle
+      });
+      // -------------------
       
       // Achievement: The Finisher (Reached goal for current year)
       if (yearlyGoal > 0 && count >= yearlyGoal && selectedYear === new Date().getFullYear()) {
