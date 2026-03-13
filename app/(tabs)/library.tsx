@@ -1,31 +1,37 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, 
-  ActivityIndicator, SafeAreaView, Platform, StatusBar 
+  ActivityIndicator, SafeAreaView, Platform, StatusBar, Dimensions, ScrollView, Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, Timestamp, getDoc, setDoc, getDocs } from 'firebase/firestore';
+import { 
+  collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, 
+  doc, Timestamp, getDoc, setDoc, getDocs 
+} from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import Toast from 'react-native-toast-message';
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 
-// --- TYPES ---
-type BookStatus = 'read' | 'reading' | 'toread';
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const COLUMN_WIDTH = (SCREEN_WIDTH - 48) / 2;
+
+type BookStatus = 'reading' | 'toread' | 'read';
 
 interface Book {
   id: string;
   title: string;
   author: string;
   status: BookStatus;
-  rating?: number; // 1-5
-  review?: string; // Legacy support ("good", "bad")
+  rating?: number;
+  review?: string;
   userId: string;
   dateAdded: any;
   dateFinished?: any;
   dateStartedReading?: any;
+  processedDate: Date;
 }
 
 export default function LibraryScreen() {
@@ -33,849 +39,374 @@ export default function LibraryScreen() {
   const colors = theme === 'dark' ? darkColors : COLORS;
   const user = auth.currentUser;
 
-  // --- STATE ---
-  const [books, setBooks] = useState<Book[]>([]);
+  const [allBooks, setAllBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<BookStatus>('reading');
-  const [displayName, setDisplayName] = useState(user?.displayName || 'Reader');
+  const [filterStatus, setFilterStatus] = useState<BookStatus>('reading');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [displayName, setDisplayName] = useState('Reader');
+  
+  const [selectedYear, setSelectedYear] = useState('All');
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // --- EFFECT: REFRESH USER NAME ON FOCUS ---
-  useFocusEffect(
-    useCallback(() => {
-      if (auth.currentUser) {
-        // Force reload user metadata if needed, but usually currentUser updates locally
-        setDisplayName(auth.currentUser.displayName || 'Reader');
-      }
-    }, [])
-  );
-  
-  // Modal State
-  const [isModalVisible, setModalVisible] = useState(false);
+  // Modal State (Add/Edit)
+  const [modalVisible, setModalVisible] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
-  
-  // Form State
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [status, setStatus] = useState<BookStatus>('reading');
   const [rating, setRating] = useState(0);
+  const [review, setReview] = useState('');
 
-  // --- EFFECT: FETCH BOOKS ---
+  // Review Viewer State
+  const [viewingReview, setViewReview] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (auth.currentUser) {
+        setDisplayName(auth.currentUser.displayName || 'Reader');
+      }
+    }, [])
+  );
+
   useEffect(() => {
     if (!user) return;
-
-    const q = query(
-      collection(db, 'books'),
-      where('userId', '==', user.uid)
-      // Note: orderBy requires an index if combined with where. 
-      // We'll sort client-side to avoid index creation delay for now if strict index rules apply.
-    );
-
+    const q = query(collection(db, 'books'), where('userId', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const booksData: Book[] = [];
-      snapshot.forEach((doc) => {
-        booksData.push({ id: doc.id, ...doc.data() } as Book);
-      });
-      // Client-side sort by dateAdded descending (newest first)
-      booksData.sort((a, b) => {
-        const timeA = a.dateAdded?.toMillis?.() || (a.dateAdded?.seconds ? a.dateAdded.seconds * 1000 : 0);
-        const timeB = b.dateAdded?.toMillis?.() || (b.dateAdded?.seconds ? b.dateAdded.seconds * 1000 : 0);
-        return timeB - timeA;
-      });
-      setBooks(booksData);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching books:", error);
-      Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to load books.' });
+      const booksData = snapshot.docs.map(doc => {
+        const d = doc.data();
+        let date = d.dateFinished || d.dateAdded;
+        let processedDate = new Date();
+        if (date?.toDate) processedDate = date.toDate();
+        else if (date?.seconds) processedDate = new Date(date.seconds * 1000);
+        else processedDate = new Date(date);
+        return { id: doc.id, ...d, processedDate };
+      }) as Book[];
+      setAllBooks(booksData);
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [user]);
 
-  // --- ACTIONS ---
+  const handleSaveBook = async () => {
+    if (!title.trim() || !author.trim()) {
+      Toast.show({ type: 'error', text1: 'Missing Info' });
+      return;
+    }
+    try {
+      const bookData: any = { title, author, status, rating, review, userId: user?.uid };
+      if (editingBook) {
+        await updateDoc(doc(db, 'books', editingBook.id), bookData);
+        Toast.show({ type: 'success', text1: 'Updated' });
+      } else {
+        bookData.dateAdded = Timestamp.now();
+        await addDoc(collection(db, 'books'), bookData);
+        Toast.show({ type: 'success', text1: 'Added' });
+      }
+      setModalVisible(false);
+      resetForm();
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: 'Error', text2: e.message });
+    }
+  };
 
-  const openAddModal = () => {
-    setEditingBook(null);
-    setTitle('');
-    setAuthor('');
-    setStatus(activeTab); // Default to current tab
-    setRating(0);
-    setModalVisible(true);
+  const resetForm = () => {
+    setEditingBook(null); setTitle(''); setAuthor(''); setStatus(filterStatus); setRating(0); setReview('');
   };
 
   const openEditModal = (book: Book) => {
-    setEditingBook(book);
-    setTitle(book.title);
-    setAuthor(book.author);
-    setStatus(book.status);
-    
-    // Handle Rating Migration logic visually
-    let currentRating = book.rating || 0;
-    if (!currentRating && book.review === 'good') currentRating = 5;
-    if (!currentRating && book.review === 'bad') currentRating = 1;
-    
-    setRating(currentRating);
-    setModalVisible(true);
+    setEditingBook(book); setTitle(book.title); setAuthor(book.author); setStatus(book.status); setRating(book.rating || 0); setReview(book.review || ''); setModalVisible(true);
   };
 
-  const handleSaveBook = async () => {
-    if (!title.trim() || !author.trim()) {
-      Toast.show({ type: 'error', text1: 'Missing Info', text2: 'Title and Author are required.' });
-      return;
-    }
+  // Delete Confirmation State
+  const [bookToDelete, setBookToDelete] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  const confirmDelete = (id: string) => {
+    setBookToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const performDelete = async () => {
+    if (!bookToDelete) return;
     try {
-      if (editingBook) {
-        // UPDATE
-        const updateData: any = {
-          title,
-          author,
-          status,
-          rating,
-          review: null,
-        };
-
-        // Anti-cheat: Track when reading actually starts
-        if (status === 'reading' && !editingBook.dateStartedReading) {
-          updateData.dateStartedReading = Timestamp.now();
-          
-          const hour = new Date().getHours();
-          if (hour >= 23 || hour < 4) {
-            await checkAndUnlockAchievement('night_owl');
-          }
-        }
-
-        if (status === 'read' && (editingBook.status !== 'read' || !editingBook.dateFinished)) {
-          updateData.dateFinished = Timestamp.now();
-          
-          // Only check speed achievements if they didn't skip the 'reading' phase (Anti-cheat)
-          if (editingBook.dateStartedReading) {
-            await checkSpeedAchievements();
-          }
-          await checkAuthorAchievements(author);
-          await checkMiscAchievements();
-        }
-
-        await updateDoc(doc(db, 'books', editingBook.id), updateData);
-        Toast.show({ type: 'success', text1: 'Updated', text2: 'Book updated successfully.' });
-      } else {
-        // CREATE
-        const bookData: any = {
-          userId: user?.uid,
-          title,
-          author,
-          status,
-          rating,
-          dateAdded: Timestamp.now(),
-        };
-
-        if (status === 'reading') {
-          bookData.dateStartedReading = Timestamp.now();
-          const hour = new Date().getHours();
-          if (hour >= 23 || hour < 4) {
-            await checkAndUnlockAchievement('night_owl');
-          }
-        }
-
-        if (status === 'read') {
-          bookData.dateFinished = Timestamp.now();
-          // Adding directly to 'read' doesn't count for speed trophies (anti-cheat)
-          await checkAuthorAchievements(author);
-          await checkMiscAchievements();
-        }
-
-        await addDoc(collection(db, 'books'), bookData);
-        Toast.show({ type: 'success', text1: 'Added', text2: 'Book added to your library.' });
-      }
-      
-      // Check To-Read achievements every time
-      await checkToReadAchievements();
-      
-      setModalVisible(false);
-    } catch (error: any) {
-      console.error("Save book error:", error);
-      Toast.show({ type: 'error', text1: 'Error', text2: error.message });
+      await deleteDoc(doc(db, 'books', bookToDelete));
+      Toast.show({ type: 'success', text1: 'Deleted', text2: 'Book removed from shelf.' });
+      setShowDeleteModal(false);
+      setBookToDelete(null);
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: 'Delete Failed' });
     }
   };
 
-  const checkSpeedAchievements = async () => {
-    if (!user) return;
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    const isAdmin = user.email === 'millerjoel7597@gmail.com';
-    const startYearLimit = isAdmin ? 2025 : 2026;
+  const yearsWithCounts = allBooks.reduce((acc: any, book) => {
+    const year = book.processedDate.getFullYear().toString();
+    acc[year] = (acc[year] || 0) + 1;
+    return acc;
+  }, {});
 
-    const qRead = query(collection(db, 'books'), where('userId', '==', user.uid), where('status', '==', 'read'));
-    const snap = await getDocs(qRead);
-    
-    let monthCount = 0;
-    snap.forEach(doc => {
-      const d = doc.data();
-      const fDate = d.dateFinished?.toDate ? d.dateFinished.toDate() : new Date(d.dateFinished?.seconds * 1000);
-      
-      if (fDate && fDate.getFullYear() >= startYearLimit) {
-        if (fDate.getMonth() === currentMonth && fDate.getFullYear() === currentYear && d.dateStartedReading) {
-          monthCount++;
-        }
-      }
-    });
+  const availableYears = ['All', ...Object.keys(yearsWithCounts).sort((a,b) => parseInt(b) - parseInt(a))];
 
-    if (monthCount >= 30) await checkAndUnlockAchievement('speed_god');
-    else if (monthCount >= 10) await checkAndUnlockAchievement('speed_demon');
-    else if (monthCount >= 5) await checkAndUnlockAchievement('speedy_reader');
+  const getTabCount = (s: BookStatus) => {
+    return allBooks.filter(b => {
+      const matchesYear = selectedYear === 'All' || b.processedDate.getFullYear().toString() === selectedYear;
+      return b.status === s && matchesYear;
+    }).length;
   };
 
-  const checkAuthorAchievements = async (authorName: string) => {
-    if (!user) return;
-    const isAdmin = user.email === 'millerjoel7597@gmail.com';
-    const startYearLimit = isAdmin ? 2025 : 2026;
-
-    const q = query(collection(db, 'books'), where('userId', '==', user.uid), where('author', '==', authorName), where('status', '==', 'read'));
-    const snap = await getDocs(q);
-    
-    let validCount = 0;
-    snap.forEach(doc => {
-      const d = doc.data();
-      const fDate = d.dateFinished?.toDate ? d.dateFinished.toDate() : new Date(d.dateFinished?.seconds * 1000);
-      if (fDate && fDate.getFullYear() >= startYearLimit) validCount++;
-    });
-
-    if (validCount >= 5) await checkAndUnlockAchievement('author_bestie');
-  };
-
-  const checkToReadAchievements = async () => {
-    if (!user) return;
-    const q = query(collection(db, 'books'), where('userId', '==', user.uid), where('status', '==', 'toread'));
-    const snap = await getDocs(q);
-    const count = snap.size;
-
-    if (count >= 10) await checkAndUnlockAchievement('the_archivist');
-    else if (count >= 5) await checkAndUnlockAchievement('cant_make_up_mind');
-    else if (count >= 3) await checkAndUnlockAchievement('indecisive');
-  };
-
-  const checkMiscAchievements = async () => {
-    if (!user) return;
-    const isAdmin = user.email === 'millerjoel7597@gmail.com';
-    const startYearLimit = isAdmin ? 2025 : 2026;
-
-    const qAllRead = query(collection(db, 'books'), where('userId', '==', user.uid), where('status', '==', 'read'));
-    const snap = await getDocs(qAllRead);
-    
-    const validBooks = snap.docs.filter(doc => {
-      const d = doc.data();
-      const fDate = d.dateFinished?.toDate ? d.dateFinished.toDate() : new Date(d.dateFinished?.seconds * 1000);
-      return fDate && fDate.getFullYear() >= startYearLimit;
-    });
-
-    // First Step
-    if (validBooks.length >= 1) await checkAndUnlockAchievement('first_step');
-
-    // Critic (10 Ratings)
-    const ratedCount = validBooks.filter(d => d.data().rating > 0).length;
-    if (ratedCount >= 10) await checkAndUnlockAchievement('the_critic');
-
-    // Polymath (5 Authors)
-    const authors = new Set(validBooks.map(d => d.data().author));
-    if (authors.size >= 5) await checkAndUnlockAchievement('the_polymath');
-  };
-
-  const checkAndUnlockAchievement = async (achievementId: string) => {
-    if (!user) return;
-    try {
-      const achRef = doc(db, 'users', user.uid, 'achievements', achievementId);
-      const achSnap = await getDoc(achRef);
-      
-      if (!achSnap.exists()) {
-        await setDoc(achRef, {
-          unlocked: true,
-          unlockedAt: Timestamp.now(),
-        });
-        Toast.show({
-          type: 'success',
-          text1: '🏆 Trophy Unlocked!',
-          text2: `Check your Trophy Shelf!`,
-          visibilityTime: 4000,
-        });
-      }
-    } catch (e) {
-      console.error("Achievement error:", e);
-    }
-  };
-
-  const handleDeleteBook = async (bookId: string) => {
-    // Simple alert for deletion as per "delete popup" request (using Alert for simplicity or can build custom)
-    // User asked for "popup that is not an alert" in settings, but didn't explicitly forbid it here. 
-    // However, for consistency, I'll use a confirm toast or just do it.
-    // Let's stick to standard Alert for deletion safety, or just do it immediately if UI is tight.
-    // Re-reading: "edit, and delete implementation" - didn't specify non-alert popup for library.
-    
-    try {
-      await deleteDoc(doc(db, 'books', bookId));
-      Toast.show({ type: 'success', text1: 'Deleted', text2: 'Book removed.' });
-    } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Error', text2: 'Could not delete book.' });
-    }
-  };
-
-  // --- RENDER HELPERS ---
-
-  const renderStars = (currentRating: number, interactive = false) => {
-    return (
-      <View style={{ flexDirection: 'row' }}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <TouchableOpacity 
-            key={star} 
-            disabled={!interactive}
-            onPress={() => interactive && setRating(star)}
-          >
-            <Ionicons 
-              name={star <= currentRating ? "star" : "star-outline"} 
-              size={interactive ? 32 : 16} 
-              color={COLORS.toRead} // Gold/Amber color
-              style={{ marginRight: interactive ? 8 : 2 }}
-            />
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
-
-  const getStatusColor = (status: BookStatus) => {
-    switch (status) {
-      case 'read': return COLORS.read;
-      case 'reading': return COLORS.reading;
-      case 'toread': return COLORS.toRead;
-      default: return colors.textLight;
-    }
-  };
-
-  const [filterType, setFilterType] = useState<'author' | 'year'>('author');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
-
-  // --- FILTER LOGIC ---
-  const matchesFilter = (b: Book) => {
-    if (!searchQuery) return true;
-    const queryLower = searchQuery.toLowerCase();
-
-    if (filterType === 'author') {
-      return b.author.toLowerCase().includes(queryLower);
-    }
-
-    if (filterType === 'year') {
-      let year = '';
-      if (b.dateAdded?.toDate) {
-        year = b.dateAdded.toDate().getFullYear().toString();
-      } else if (b.dateAdded?.seconds) {
-        year = new Date(b.dateAdded.seconds * 1000).getFullYear().toString();
-      } else if (b.dateAdded) {
-         year = new Date(b.dateAdded).getFullYear().toString();
-      }
-      return year.includes(queryLower);
-    }
-    return true;
-  };
-
-  const filteredBooks = books.filter(b => b.status === activeTab && matchesFilter(b));
-
-  const getCardBackground = (status: BookStatus) => {
-    switch (status) {
-      case 'read': return colors.readBg;
-      case 'reading': return colors.readingBg;
-      case 'toread': return colors.toReadBg;
-      default: return colors.card;
-    }
-  };
-
-  const getCardBorder = (status: BookStatus) => {
-    switch (status) {
-      case 'read': return colors.read;
-      case 'reading': return colors.reading;
-      case 'toread': return colors.toRead;
-      default: return colors.border;
-    }
-  };
+  const filteredBooks = allBooks.filter(b => {
+    const matchesStatus = b.status === filterStatus;
+    const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || b.author.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesYear = selectedYear === 'All' || b.processedDate.getFullYear().toString() === selectedYear;
+    return matchesStatus && matchesSearch && matchesYear;
+  });
 
   const renderBookItem = ({ item, index }: { item: Book, index: number }) => {
-    // Migration display logic
+    const coverColor = colors.covers[index % colors.covers.length];
+    
+    // Fallback logic for legacy reviews
     let displayRating = item.rating || 0;
     if (!displayRating && item.review === 'good') displayRating = 5;
     if (!displayRating && item.review === 'bad') displayRating = 1;
 
-    // Date Formatting
-    let dateAddedStr = 'Unknown Date';
-    if (item.dateAdded) {
-        try {
-            if (typeof item.dateAdded.toDate === 'function') {
-                dateAddedStr = item.dateAdded.toDate().toLocaleDateString();
-            } else if (item.dateAdded.seconds) {
-                dateAddedStr = new Date(item.dateAdded.seconds * 1000).toLocaleDateString();
-            } else {
-                const d = new Date(item.dateAdded);
-                if (!isNaN(d.getTime())) {
-                    dateAddedStr = d.toLocaleDateString();
-                }
-            }
-        } catch (e) {
-            console.log("Date parsing error", e);
-        }
-    }
-
     return (
-      <Animated.View 
-        entering={FadeInDown.delay(index * 100).springify()}
-        layout={Layout.springify()}
-        style={[styles.bookCard, { backgroundColor: getCardBackground(item.status), borderColor: getCardBorder(item.status) }]}
-      >
-        <View style={styles.bookInfo}>
-          <Text style={[styles.bookTitle, { color: colors.textDark }]}>{item.title}</Text>
-          <Text style={[styles.bookAuthor, { color: colors.textLight }]}>{item.author}</Text>
-          <Text style={[styles.bookDate, { color: colors.textLight }]}>Added: {dateAddedStr}</Text>
-          
-          {item.status === 'read' && (
-            <View style={styles.ratingContainer}>
-              {renderStars(displayRating)}
-            </View>
-          )}
-        </View>
-        
-        <View style={styles.bookActions}>
-          <TouchableOpacity onPress={() => openEditModal(item)} style={styles.actionBtn}>
-            <Ionicons name="pencil" size={20} color={colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleDeleteBook(item.id)} style={styles.actionBtn}>
-            <Ionicons name="trash-outline" size={20} color={colors.danger} />
+      <Animated.View entering={FadeInDown.delay(index * 50).springify()} layout={Layout.springify()} style={styles.bookWrapper}>
+        {/* ACTION ICONS (Top Layer) */}
+        <View style={styles.topActions}>
+          <TouchableOpacity 
+            style={[styles.actionIcon, { backgroundColor: 'rgba(0,0,0,0.4)' }]} 
+            onPress={() => confirmDelete(item.id)}
+          >
+            <Ionicons name="trash-outline" size={16} color="#FFF" />
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity 
+          activeOpacity={0.9} 
+          style={[styles.bookCover, { backgroundColor: coverColor }]} 
+          onPress={() => openEditModal(item)}
+        >
+          <View style={styles.coverTexture} />
+          <Text style={styles.coverTitle} numberOfLines={3}>{item.title}</Text>
+          <View style={styles.coverDivider} />
+          <Text style={styles.coverAuthor} numberOfLines={1}>{item.author}</Text>
+          <View style={styles.coverFooter}>
+            <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
+            {displayRating > 0 && (
+              <View style={styles.miniRating}>
+                <Ionicons name="star" size={10} color="#ebcb8b" />
+                <Text style={styles.miniRatingText}>{displayRating}</Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
       </Animated.View>
     );
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
+      
       <View style={styles.header}>
-        <Text style={[styles.greeting, { color: colors.textLight }]}>Hi,</Text>
-        <Text style={[styles.username, { color: colors.textDark }]}>
-          {displayName}
-        </Text>
-      </View>
-
-      {/* TABS */}
-      <View style={styles.tabContainer}>
-        {(['read', 'reading', 'toread'] as BookStatus[]).map((tab) => {
-          const count = books.filter(b => b.status === tab && matchesFilter(b)).length;
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={[
-                styles.tab,
-                activeTab === tab && { backgroundColor: getStatusColor(tab) }
-              ]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[
-                styles.tabText,
-                { color: activeTab === tab ? '#FFF' : colors.textLight }
-              ]}>
-                {tab === 'toread' ? 'To Read' : tab.charAt(0).toUpperCase() + tab.slice(1)} ({count})
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* SEARCH / FILTER BAR */}
-      <View style={[styles.filterBar, { zIndex: 10 }]}> 
-        {/* Dropdown Trigger */}
-        <View style={{ position: 'relative' }}>
-            <TouchableOpacity 
-              style={[styles.dropdownTrigger, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => setShowFilterMenu(!showFilterMenu)}
-            >
-              <Text style={{ color: colors.textDark, marginRight: 4 }}>
-                {filterType === 'author' ? 'Author' : 'Year'}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={colors.textLight} />
-            </TouchableOpacity>
-
-            {/* Dropdown Menu */}
-            {showFilterMenu && (
-              <View style={[styles.dropdownMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <TouchableOpacity 
-                  style={styles.dropdownItem} 
-                  onPress={() => { setFilterType('author'); setShowFilterMenu(false); }}
-                >
-                  <Text style={{ color: colors.textDark }}>Author</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.dropdownItem} 
-                  onPress={() => { setFilterType('year'); setShowFilterMenu(false); }}
-                >
-                  <Text style={{ color: colors.textDark }}>Year</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.greeting, { color: colors.textLight }]}>Welcome back,</Text>
+          <Text style={[styles.username, { color: colors.textDark }]} numberOfLines={1}>{displayName}</Text>
         </View>
-
-        {/* Search Input */}
-        <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TextInput
-            style={[styles.searchInput, { color: colors.textDark }]}
-            placeholder={`Search by ${filterType}...`}
-            placeholderTextColor={colors.textLight}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            keyboardType={filterType === 'year' ? 'numeric' : 'default'}
-          />
-          {searchQuery ? (
-             <TouchableOpacity onPress={() => setSearchQuery('')}>
-               <Ionicons name="close-circle" size={18} color={colors.textLight} />
-             </TouchableOpacity>
-          ) : (
-             <Ionicons name="search" size={18} color={colors.textLight} />
-          )}
-        </View>
-      </View>
-
-      {/* CONTENT */}
-      {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
-      ) : (
-        <FlatList
-          data={filteredBooks}
-          renderItem={renderBookItem}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={{ color: colors.textLight }}>No books found in this list.</Text>
+        <TouchableOpacity style={[styles.filterChip, { backgroundColor: colors.card, borderColor: selectedYear !== 'All' ? colors.primary : colors.border }]} onPress={() => setShowFilterModal(true)}>
+          <Ionicons name="options-outline" size={20} color={selectedYear !== 'All' ? colors.primary : colors.textDark} />
+          {selectedYear !== 'All' && (
+            <View style={styles.activeFilterLabel}>
+              <Text style={[styles.filterYearText, { color: colors.primary }]}>{selectedYear}</Text>
+              <TouchableOpacity onPress={() => setSelectedYear('All')}><Ionicons name="close-circle" size={16} color={colors.primary} /></TouchableOpacity>
             </View>
-          }
-        />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.searchSection}>
+        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Ionicons name="search" size={18} color={colors.textLight} /><TextInput placeholder="Search shelf..." placeholderTextColor={colors.textLight} style={[styles.searchInput, { color: colors.textDark }]} value={searchQuery} onChangeText={setSearchQuery} />
+        </View>
+      </View>
+
+      <View style={styles.filterTabs}>
+        {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
+          <TouchableOpacity key={s} onPress={() => setFilterStatus(s)} style={[styles.tab, filterStatus === s && { borderBottomColor: colors.primary, borderBottomWidth: 3 }]}>
+            <Text style={[styles.tabText, { color: filterStatus === s ? colors.textDark : colors.textLight }]}>{s === 'toread' ? 'TO READ' : s.toUpperCase()} ({getTabCount(s)})</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
+      ) : (
+        <FlatList data={filteredBooks} renderItem={renderBookItem} keyExtractor={item => item.id} numColumns={2} contentContainerStyle={styles.listContent} columnWrapperStyle={styles.columnWrapper} showsVerticalScrollIndicator={false} ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="library-outline" size={64} color={colors.border} /><Text style={[styles.emptyText, { color: colors.textLight }]}>No books found</Text></View>} />
       )}
 
-      {/* FAB ADD BUTTON */}
-      <TouchableOpacity 
-        style={[styles.fab, { backgroundColor: colors.primary }]}
-        onPress={openAddModal}
-      >
-        <Ionicons name="add" size={32} color="#FFF" />
-      </TouchableOpacity>
+      <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={() => { resetForm(); setModalVisible(true); }}><Ionicons name="add" size={32} color="white" /></TouchableOpacity>
 
-      {/* ADD/EDIT MODAL */}
-      <Modal
-        visible={isModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
+      {/* FILTER MODAL */}
+      <Modal visible={showFilterModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.textDark }]}>
-              {editingBook ? 'Edit Book' : 'Add New Book'}
-            </Text>
-
-            <TextInput
-              style={[styles.input, { color: colors.textDark, borderColor: colors.border, backgroundColor: colors.background }]}
-              placeholder="Book Title"
-              placeholderTextColor={colors.textLight}
-              value={title}
-              onChangeText={setTitle}
-            />
-            <TextInput
-              style={[styles.input, { color: colors.textDark, borderColor: colors.border, backgroundColor: colors.background }]}
-              placeholder="Author"
-              placeholderTextColor={colors.textLight}
-              value={author}
-              onChangeText={setAuthor}
-            />
-
-            <Text style={[styles.label, { color: colors.textDark }]}>Status</Text>
-            <View style={styles.statusSelect}>
-              {(['read', 'reading', 'toread'] as BookStatus[]).map((s) => (
-                <TouchableOpacity
-                  key={s}
-                  style={[
-                    styles.statusOption,
-                    status === s && { backgroundColor: getStatusColor(s), borderColor: getStatusColor(s) },
-                    status !== s && { borderColor: colors.border }
-                  ]}
-                  onPress={() => setStatus(s)}
-                >
-                  <Text style={{ 
-                    color: status === s ? '#FFF' : colors.textLight, 
-                    fontSize: 12 
-                  }}>
-                    {s === 'toread' ? 'To Read' : s.charAt(0).toUpperCase() + s.slice(1)}
-                  </Text>
-                </TouchableOpacity>
+            <View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.textDark }]}>Filter by Year</Text><TouchableOpacity onPress={() => setShowFilterModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View>
+            <ScrollView style={{ width: '100%', maxHeight: 350 }}>
+              {availableYears.map(year => (
+                <TouchableOpacity key={year} onPress={() => { setSelectedYear(year); setShowFilterModal(false); }} style={[styles.yearOption, selectedYear === year && { backgroundColor: colors.primaryLight }]}><Text style={[styles.yearOptionText, { color: colors.textDark }]}>{year === 'All' ? 'All Time' : year}</Text><Text style={[styles.yearOptionCount, { color: colors.textLight }]}>{year === 'All' ? allBooks.length : yearsWithCounts[year]} books</Text></TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
+            {selectedYear !== 'All' && <TouchableOpacity style={[styles.clearBtn, { borderColor: colors.danger }]} onPress={() => { setSelectedYear('All'); setShowFilterModal(false); }}><Ionicons name="trash-bin-outline" size={18} color={colors.danger} /><Text style={[styles.clearBtnText, { color: colors.danger }]}>Clear Year Filter</Text></TouchableOpacity>}
+          </View>
+        </View>
+      </Modal>
 
-            {status === 'read' && (
-              <View style={styles.ratingSection}>
-                <Text style={[styles.label, { color: colors.textDark, marginBottom: 8 }]}>Rating</Text>
-                {renderStars(rating, true)}
+      {/* ADD/EDIT MODAL */}
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.textDark }]}>{editingBook ? 'Edit Book' : 'New Book'}</Text><TouchableOpacity onPress={() => setModalVisible(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>Title</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={title} onChangeText={setTitle} />
+              <Text style={styles.inputLabel}>Author</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={author} onChangeText={setAuthor} />
+              <Text style={styles.inputLabel}>Status</Text>
+              <View style={styles.statusRow}>
+                {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
+                  <TouchableOpacity key={s} onPress={() => setStatus(s)} style={[styles.statusBtn, { borderColor: colors.border }, status === s && { backgroundColor: colors.primary, borderColor: colors.primary }]}><Text style={[styles.statusBtnText, { color: status === s ? 'white' : colors.textLight }]}>{s === 'toread' ? 'To Read' : s}</Text></TouchableOpacity>
+                ))}
               </View>
-            )}
+              {status === 'read' && (
+                <>
+                  <Text style={styles.inputLabel}>Rating</Text>
+                  <View style={styles.ratingRow}>{[1, 2, 3, 4, 5].map((s) => (<TouchableOpacity key={s} onPress={() => setRating(s)}><Ionicons name={s <= rating ? "star" : "star-outline"} size={32} color={s <= rating ? "#ebcb8b" : colors.border} /></TouchableOpacity>))}</View>
+                  <Text style={styles.inputLabel}>Review</Text>
+                  <TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border, height: 100, textAlignVertical: 'top' }]} value={review} onChangeText={setReview} multiline placeholder="What did you think of this book?" />
+                </>
+              )}
+              <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSaveBook}><Text style={styles.saveBtnText}>Save Book</Text></TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.cancelButton]} 
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+      {/* REVIEW VIEWER MODAL */}
+      <Modal visible={!!viewingReview} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card, paddingBottom: 24 }]}>
+            <View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.textDark }]}>Your Review</Text><TouchableOpacity onPress={() => setViewReview(null)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View>
+            <ScrollView style={{ maxHeight: 300 }}><Text style={[styles.reviewText, { color: colors.textDark }]}>{viewingReview}</Text></ScrollView>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary, marginTop: 24 }]} onPress={() => setViewReview(null)}><Text style={styles.saveBtnText}>Close</Text></TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* DELETE CONFIRMATION MODAL */}
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card, paddingBottom: 32 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.danger }]}>Delete Book?</Text>
+              <TouchableOpacity onPress={() => setShowDeleteModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity>
+            </View>
+            <Text style={{ color: colors.textLight, fontSize: 16, marginBottom: 24, textAlign: 'center' }}>
+              Are you sure you want to delete this book from your shelf? This action cannot be undone.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, marginTop: 0 }]} onPress={() => setShowDeleteModal(false)}>
+                <Text style={[styles.saveBtnText, { color: colors.textDark }]}>Cancel</Text>
               </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.modalButton, { backgroundColor: colors.primary }]} 
-                onPress={handleSaveBook}
-              >
-                <Text style={styles.confirmButtonText}>Save</Text>
+              <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: colors.danger, marginTop: 0 }]} onPress={performDelete}>
+                <Text style={styles.saveBtnText}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  container: { flex: 1 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: Platform.OS === 'android' ? 40 : 20, marginBottom: 12 },
+  greeting: { fontSize: 14, fontWeight: '600' },
+  username: { fontSize: 24, fontWeight: '900' },
+  headerActions: { flexDirection: 'row', alignItems: 'center' },
+  filterChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, gap: 8 },
+  activeFilterLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, borderLeftWidth: 1, borderLeftColor: 'rgba(0,0,0,0.1)', paddingLeft: 8 },
+  filterYearText: { fontSize: 14, fontWeight: 'bold' },
+  fab: { position: 'absolute', bottom: 24, right: 24, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, zIndex: 100 },
+  searchSection: { paddingHorizontal: 24, marginBottom: 16 },
+  searchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: 44, borderRadius: 12, borderWidth: 1 },
+  searchInput: { flex: 1, marginLeft: 8, fontSize: 14, fontWeight: '600' },
+  filterTabs: { flexDirection: 'row', paddingHorizontal: 24, marginBottom: 16, gap: 20 },
+  tab: { paddingVertical: 8 },
+  tabText: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
+  columnWrapper: { justifyContent: 'space-between', marginBottom: 16 },
+  bookWrapper: { width: COLUMN_WIDTH },
+  topActions: { 
+    position: 'absolute', 
+    top: 8, 
+    right: 8, 
+    flexDirection: 'row', 
+    gap: 6, 
+    zIndex: 20 
   },
-  header: {
-    padding: 24,
-    paddingBottom: 16,
-  },
-  greeting: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  username: {
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    gap: 12,
-  },
-  tab: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  tabText: {
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 100,
-  },
-  emptyState: {
+  actionIcon: { 
+    width: 32, 
+    height: 32, 
+    borderRadius: 10, 
+    justifyContent: 'center', 
     alignItems: 'center',
-    marginTop: 40,
-  },
-  
-  bookDate: {
-    fontSize: 12,
-    marginTop: 2,
-    fontStyle: 'italic',
-  },
-  
-  // Filter Bar
-  filterBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-    gap: 12,
-    alignItems: 'center',
-  },
-  dropdownTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: 44,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderRadius: 8,
-    minWidth: 100,
-    justifyContent: 'space-between',
-  },
-  dropdownMenu: {
-    position: 'absolute',
-    top: 50,
-    left: 0,
-    width: 120,
-    borderWidth: 1,
-    borderRadius: 8,
-    zIndex: 100,
-    padding: 4,
-    shadowColor: "#000",
+    elevation: 5,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowRadius: 2,
   },
-  dropdownItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-  },
-  searchContainer: {
-    flex: 1,
-    flexDirection: 'row',
+  bookCover: { width: '100%', aspectRatio: 2/3, borderRadius: 12, padding: 16, justifyContent: 'center', alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 4, height: 6 }, shadowOpacity: 0.4, shadowRadius: 8 },
+  coverTexture: { position: 'absolute', left: 10, top: 0, bottom: 0, width: 3, backgroundColor: 'rgba(0,0,0,0.15)' },
+  coverTitle: { color: 'white', fontSize: 15, fontWeight: '900', textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 },
+  coverDivider: { width: 30, height: 2, backgroundColor: 'rgba(255,255,255,0.4)', marginVertical: 10 },
+  coverAuthor: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  coverFooter: { position: 'absolute', bottom: 12, width: '100%', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, alignItems: 'center' },
+  dateText: { color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: 'bold' },
+  miniRating: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
+  miniRatingText: { color: 'white', fontSize: 9, fontWeight: 'bold', marginLeft: 2 },
+  emptyState: { alignItems: 'center', marginTop: 100 },
+  emptyText: { marginTop: 16, fontSize: 16, fontWeight: '600' },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.7)', 
+    justifyContent: 'center', 
     alignItems: 'center',
-    height: 44,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    padding: 24 
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    marginRight: 8,
-  },
-
-  // Book Card
-  bookCard: {
-    flexDirection: 'row',
-    padding: 20,
-    marginBottom: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  bookInfo: {
-    flex: 1,
-  },
-  bookTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  bookAuthor: {
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  ratingContainer: {
-    marginTop: 4,
-  },
-  bookActions: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  actionBtn: {
-    padding: 4,
-  },
-
-  // FAB
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+  modalContent: { 
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 28, 
+    padding: 24, 
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+    shadowRadius: 20,
   },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    width: '100%',
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  input: {
-    width: '100%',
-    height: 48,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    marginBottom: 16,
-    fontSize: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  statusSelect: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 20,
-  },
-  statusOption: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  ratingSection: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    width: '100%',
-    gap: 12,
-  },
-  modalButton: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#e2e8f0',
-  },
-  cancelButtonText: {
-    color: '#475569',
-    fontWeight: '600',
-  },
-  confirmButtonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, width: '100%' },
+  modalTitle: { fontSize: 24, fontWeight: '900' },
+  yearOption: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', padding: 18, borderRadius: 16, marginBottom: 8 },
+  yearOptionText: { fontSize: 16, fontWeight: 'bold' },
+  yearOptionCount: { fontSize: 14, fontWeight: '600' },
+  clearBtn: { flexDirection: 'row', gap: 10, width: '100%', paddingVertical: 16, borderRadius: 16, borderWidth: 1, marginTop: 16, alignItems: 'center', justifyContent: 'center' },
+  clearBtnText: { fontSize: 14, fontWeight: 'bold' },
+  inputLabel: { fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 16, textTransform: 'uppercase', opacity: 0.6 },
+  input: { width: '100%', borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 16 },
+  statusRow: { flexDirection: 'row', gap: 8, width: '100%' },
+  statusBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  statusBtnText: { fontSize: 11, fontWeight: '900' },
+  ratingRow: { flexDirection: 'row', gap: 12, marginTop: 12, justifyContent: 'center' },
+  saveBtn: { width: '100%', height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 32 },
+  saveBtnText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  reviewText: { fontSize: 16, lineHeight: 24, fontWeight: '500' },
 });
