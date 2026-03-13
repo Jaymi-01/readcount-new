@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar, TextInput, TouchableOpacity, Modal, Dimensions } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { auth, db } from '../../firebaseConfig';
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { COLORS, darkColors } from '../../constants/colors';
-import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import { collection, doc, getDoc, onSnapshot, query, where, setDoc, Timestamp } from 'firebase/firestore';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Dimensions, Modal, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { COLORS, darkColors } from '../../constants/colors';
+import { auth, db } from '../../firebaseConfig';
+import { useTheme } from '../context/ThemeContext';
+import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -175,6 +176,11 @@ export default function StatsScreen() {
       setBooksReadThisYear(count);
       setMonthlyStats(months.map((m, i) => ({ month: m, count: monthCounts[i] })));
       
+      // Achievement: The Finisher (Reached goal for current year)
+      if (yearlyGoal > 0 && count >= yearlyGoal && selectedYear === new Date().getFullYear()) {
+        checkAndUnlockAchievement('the_finisher');
+      }
+
       // Calculate Top Month
       const maxMonthIdx = monthCounts.indexOf(Math.max(...monthCounts));
       setTopMonth(count > 0 ? months[maxMonthIdx] : 'None');
@@ -219,6 +225,29 @@ export default function StatsScreen() {
   }
 
   const maxCount = Math.max(...monthlyStats.map(s => s.count), 1);
+
+  const checkAndUnlockAchievement = async (achievementId: string) => {
+    if (!user) return;
+    try {
+      const achRef = doc(db, 'users', user.uid, 'achievements', achievementId);
+      const achSnap = await getDoc(achRef);
+      
+      if (!achSnap.exists()) {
+        await setDoc(achRef, {
+          unlocked: true,
+          unlockedAt: Timestamp.now(),
+        });
+        Toast.show({
+          type: 'success',
+          text1: '🏆 Trophy Unlocked!',
+          text2: `You reached your reading goal!`,
+          visibilityTime: 4000,
+        });
+      }
+    } catch (e) {
+      console.error("Achievement error:", e);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -375,7 +404,7 @@ export default function StatsScreen() {
             </View>
 
             <View style={[styles.wrappedQuoteCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
-              <Text style={styles.wrappedQuote}>"A reader lives a thousand lives before he dies."</Text>
+              <Text style={styles.wrappedQuote}>&quot;A reader lives a thousand lives before he dies.&quot;</Text>
               <Text style={styles.wrappedQuoteAuthor}>— George R.R. Martin</Text>
             </View>
 
