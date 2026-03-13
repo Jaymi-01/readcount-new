@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, doc, Timestamp, getDoc, setDoc, getDocs } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import Toast from 'react-native-toast-message';
@@ -25,6 +25,7 @@ interface Book {
   userId: string;
   dateAdded: any;
   dateFinished?: any;
+  dateStartedReading?: any;
 }
 
 export default function LibraryScreen() {
@@ -134,9 +135,25 @@ export default function LibraryScreen() {
           review: null,
         };
 
-        // If status changed to 'read' and it wasn't read before, or if it's already read but has no dateFinished
+        // Anti-cheat: Track when reading actually starts
+        if (status === 'reading' && !editingBook.dateStartedReading) {
+          updateData.dateStartedReading = Timestamp.now();
+          
+          const hour = new Date().getHours();
+          if (hour >= 23 || hour < 4) {
+            await checkAndUnlockAchievement('night_owl');
+          }
+        }
+
         if (status === 'read' && (editingBook.status !== 'read' || !editingBook.dateFinished)) {
           updateData.dateFinished = Timestamp.now();
+          
+          // Only check speed achievements if they didn't skip the 'reading' phase (Anti-cheat)
+          if (editingBook.dateStartedReading) {
+            await checkSpeedAchievements();
+          }
+          await checkAuthorAchievements(author);
+          await checkMiscAchievements();
         }
 
         await updateDoc(doc(db, 'books', editingBook.id), updateData);
@@ -152,17 +169,138 @@ export default function LibraryScreen() {
           dateAdded: Timestamp.now(),
         };
 
+        if (status === 'reading') {
+          bookData.dateStartedReading = Timestamp.now();
+          const hour = new Date().getHours();
+          if (hour >= 23 || hour < 4) {
+            await checkAndUnlockAchievement('night_owl');
+          }
+        }
+
         if (status === 'read') {
           bookData.dateFinished = Timestamp.now();
+          // Adding directly to 'read' doesn't count for speed trophies (anti-cheat)
+          await checkAuthorAchievements(author);
+          await checkMiscAchievements();
         }
 
         await addDoc(collection(db, 'books'), bookData);
         Toast.show({ type: 'success', text1: 'Added', text2: 'Book added to your library.' });
       }
+      
+      // Check To-Read achievements every time
+      await checkToReadAchievements();
+      
       setModalVisible(false);
     } catch (error: any) {
       console.error("Save book error:", error);
       Toast.show({ type: 'error', text1: 'Error', text2: error.message });
+    }
+  };
+
+  const checkSpeedAchievements = async () => {
+    if (!user) return;
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const isAdmin = user.email === 'millerjoel7597@gmail.com';
+    const startYearLimit = isAdmin ? 2025 : 2026;
+
+    const qRead = query(collection(db, 'books'), where('userId', '==', user.uid), where('status', '==', 'read'));
+    const snap = await getDocs(qRead);
+    
+    let monthCount = 0;
+    snap.forEach(doc => {
+      const d = doc.data();
+      const fDate = d.dateFinished?.toDate ? d.dateFinished.toDate() : new Date(d.dateFinished?.seconds * 1000);
+      
+      if (fDate && fDate.getFullYear() >= startYearLimit) {
+        if (fDate.getMonth() === currentMonth && fDate.getFullYear() === currentYear && d.dateStartedReading) {
+          monthCount++;
+        }
+      }
+    });
+
+    if (monthCount >= 30) await checkAndUnlockAchievement('speed_god');
+    else if (monthCount >= 10) await checkAndUnlockAchievement('speed_demon');
+    else if (monthCount >= 5) await checkAndUnlockAchievement('speedy_reader');
+  };
+
+  const checkAuthorAchievements = async (authorName: string) => {
+    if (!user) return;
+    const isAdmin = user.email === 'millerjoel7597@gmail.com';
+    const startYearLimit = isAdmin ? 2025 : 2026;
+
+    const q = query(collection(db, 'books'), where('userId', '==', user.uid), where('author', '==', authorName), where('status', '==', 'read'));
+    const snap = await getDocs(q);
+    
+    let validCount = 0;
+    snap.forEach(doc => {
+      const d = doc.data();
+      const fDate = d.dateFinished?.toDate ? d.dateFinished.toDate() : new Date(d.dateFinished?.seconds * 1000);
+      if (fDate && fDate.getFullYear() >= startYearLimit) validCount++;
+    });
+
+    if (validCount >= 5) await checkAndUnlockAchievement('author_bestie');
+  };
+
+  const checkToReadAchievements = async () => {
+    if (!user) return;
+    const q = query(collection(db, 'books'), where('userId', '==', user.uid), where('status', '==', 'toread'));
+    const snap = await getDocs(q);
+    const count = snap.size;
+
+    if (count >= 10) await checkAndUnlockAchievement('the_archivist');
+    else if (count >= 5) await checkAndUnlockAchievement('cant_make_up_mind');
+    else if (count >= 3) await checkAndUnlockAchievement('indecisive');
+  };
+
+  const checkMiscAchievements = async () => {
+    if (!user) return;
+    const isAdmin = user.email === 'millerjoel7597@gmail.com';
+    const startYearLimit = isAdmin ? 2025 : 2026;
+
+    const qAllRead = query(collection(db, 'books'), where('userId', '==', user.uid), where('status', '==', 'read'));
+    const snap = await getDocs(qAllRead);
+    
+    const validBooks = snap.docs.filter(doc => {
+      const d = doc.data();
+      const fDate = d.dateFinished?.toDate ? d.dateFinished.toDate() : new Date(d.dateFinished?.seconds * 1000);
+      return fDate && fDate.getFullYear() >= startYearLimit;
+    });
+
+    // First Step
+    if (validBooks.length >= 1) await checkAndUnlockAchievement('first_step');
+
+    // Critic (10 Ratings)
+    const ratedCount = validBooks.filter(d => d.data().rating > 0).length;
+    if (ratedCount >= 10) await checkAndUnlockAchievement('the_critic');
+
+    // Polymath (5 Authors)
+    const authors = new Set(validBooks.map(d => d.data().author));
+    if (authors.size >= 5) await checkAndUnlockAchievement('the_polymath');
+  };
+
+  const checkAndUnlockAchievement = async (achievementId: string) => {
+    if (!user) return;
+    try {
+      const achRef = doc(db, 'users', user.uid, 'achievements', achievementId);
+      const achSnap = await getDoc(achRef);
+      
+      if (!achSnap.exists()) {
+        await setDoc(achRef, {
+          unlocked: true,
+          unlockedAt: Timestamp.now(),
+        });
+        Toast.show({
+          type: 'success',
+          text1: '🏆 Trophy Unlocked!',
+          text2: `Check your Trophy Shelf!`,
+          visibilityTime: 4000,
+        });
+      }
+    } catch (e) {
+      console.error("Achievement error:", e);
     }
   };
 
