@@ -26,7 +26,6 @@ interface Book {
   author: string;
   status: BookStatus;
   rating?: number;
-  review?: string;
   userId: string;
   dateAdded: any;
   dateFinished?: any;
@@ -55,10 +54,10 @@ export default function LibraryScreen() {
   const [author, setAuthor] = useState('');
   const [status, setStatus] = useState<BookStatus>('reading');
   const [rating, setRating] = useState(0);
-  const [review, setReview] = useState('');
 
-  // Review Viewer State
-  const [viewingReview, setViewReview] = useState<string | null>(null);
+  // Delete Confirmation State
+  const [bookToDelete, setBookToDelete] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -79,7 +78,13 @@ export default function LibraryScreen() {
         if (date?.toDate) processedDate = date.toDate();
         else if (date?.seconds) processedDate = new Date(date.seconds * 1000);
         else processedDate = new Date(date);
-        return { id: doc.id, ...d, processedDate };
+
+        // Migrate legacy reviews to stars if rating is missing
+        let migrateRating = d.rating || 0;
+        if (!migrateRating && d.review === 'good') migrateRating = 5;
+        if (!migrateRating && d.review === 'bad') migrateRating = 1;
+
+        return { id: doc.id, ...d, processedDate, rating: migrateRating };
       }) as Book[];
       setAllBooks(booksData);
       setLoading(false);
@@ -93,7 +98,7 @@ export default function LibraryScreen() {
       return;
     }
     try {
-      const bookData: any = { title, author, status, rating, review, userId: user?.uid };
+      const bookData: any = { title, author, status, rating, userId: user?.uid };
       if (editingBook) {
         await updateDoc(doc(db, 'books', editingBook.id), bookData);
         Toast.show({ type: 'success', text1: 'Updated' });
@@ -110,16 +115,12 @@ export default function LibraryScreen() {
   };
 
   const resetForm = () => {
-    setEditingBook(null); setTitle(''); setAuthor(''); setStatus(filterStatus); setRating(0); setReview('');
+    setEditingBook(null); setTitle(''); setAuthor(''); setStatus(filterStatus); setRating(0);
   };
 
   const openEditModal = (book: Book) => {
-    setEditingBook(book); setTitle(book.title); setAuthor(book.author); setStatus(book.status); setRating(book.rating || 0); setReview(book.review || ''); setModalVisible(true);
+    setEditingBook(book); setTitle(book.title); setAuthor(book.author); setStatus(book.status); setRating(book.rating || 0); setModalVisible(true);
   };
-
-  // Delete Confirmation State
-  const [bookToDelete, setBookToDelete] = useState<string | null>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const confirmDelete = (id: string) => {
     setBookToDelete(id);
@@ -130,7 +131,7 @@ export default function LibraryScreen() {
     if (!bookToDelete) return;
     try {
       await deleteDoc(doc(db, 'books', bookToDelete));
-      Toast.show({ type: 'success', text1: 'Deleted', text2: 'Book removed from shelf.' });
+      Toast.show({ type: 'success', text1: 'Deleted' });
       setShowDeleteModal(false);
       setBookToDelete(null);
     } catch (e: any) {
@@ -162,43 +163,31 @@ export default function LibraryScreen() {
 
   const renderBookItem = ({ item, index }: { item: Book, index: number }) => {
     const coverColor = colors.covers[index % colors.covers.length];
-    
-    // Fallback logic for legacy reviews
-    let displayRating = item.rating || 0;
-    if (!displayRating && item.review === 'good') displayRating = 5;
-    if (!displayRating && item.review === 'bad') displayRating = 1;
-
     return (
       <Animated.View entering={FadeInDown.delay(index * 50).springify()} layout={Layout.springify()} style={styles.bookWrapper}>
-        {/* ACTION ICONS (Top Layer) */}
-        <View style={styles.topActions}>
-          <TouchableOpacity 
-            style={[styles.actionIcon, { backgroundColor: 'rgba(0,0,0,0.4)' }]} 
-            onPress={() => confirmDelete(item.id)}
-          >
-            <Ionicons name="trash-outline" size={16} color="#FFF" />
+        <View style={styles.coverContainer}>
+          <TouchableOpacity activeOpacity={0.9} style={[styles.bookCover, { backgroundColor: coverColor }]} onPress={() => openEditModal(item)}>
+            <View style={styles.coverTexture} />
+            <Text style={styles.coverTitle} numberOfLines={3}>{item.title}</Text>
+            <View style={styles.coverDivider} />
+            <Text style={styles.coverAuthor} numberOfLines={1}>{item.author}</Text>
+            <View style={styles.coverFooter}>
+              <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
+              {item.rating && item.rating > 0 && (
+                <View style={styles.miniRating}>
+                  <Ionicons name="star" size={10} color="#ebcb8b" />
+                  <Text style={styles.miniRatingText}>{item.rating}</Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity 
-          activeOpacity={0.9} 
-          style={[styles.bookCover, { backgroundColor: coverColor }]} 
-          onPress={() => openEditModal(item)}
-        >
-          <View style={styles.coverTexture} />
-          <Text style={styles.coverTitle} numberOfLines={3}>{item.title}</Text>
-          <View style={styles.coverDivider} />
-          <Text style={styles.coverAuthor} numberOfLines={1}>{item.author}</Text>
-          <View style={styles.coverFooter}>
-            <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
-            {displayRating > 0 && (
-              <View style={styles.miniRating}>
-                <Ionicons name="star" size={10} color="#ebcb8b" />
-                <Text style={styles.miniRatingText}>{displayRating}</Text>
-              </View>
-            )}
+          
+          <View style={styles.coverActions}>
+            <TouchableOpacity style={styles.actionIcon} onPress={() => confirmDelete(item.id)}>
+              <Ionicons name="trash-outline" size={16} color="#FFF" />
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       </Animated.View>
     );
   };
@@ -278,8 +267,6 @@ export default function LibraryScreen() {
                 <>
                   <Text style={styles.inputLabel}>Rating</Text>
                   <View style={styles.ratingRow}>{[1, 2, 3, 4, 5].map((s) => (<TouchableOpacity key={s} onPress={() => setRating(s)}><Ionicons name={s <= rating ? "star" : "star-outline"} size={32} color={s <= rating ? "#ebcb8b" : colors.border} /></TouchableOpacity>))}</View>
-                  <Text style={styles.inputLabel}>Review</Text>
-                  <TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border, height: 100, textAlignVertical: 'top' }]} value={review} onChangeText={setReview} multiline placeholder="What did you think of this book?" />
                 </>
               )}
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSaveBook}><Text style={styles.saveBtnText}>Save Book</Text></TouchableOpacity>
@@ -288,35 +275,15 @@ export default function LibraryScreen() {
         </View>
       </Modal>
 
-      {/* REVIEW VIEWER MODAL */}
-      <Modal visible={!!viewingReview} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card, paddingBottom: 24 }]}>
-            <View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.textDark }]}>Your Review</Text><TouchableOpacity onPress={() => setViewReview(null)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View>
-            <ScrollView style={{ maxHeight: 300 }}><Text style={[styles.reviewText, { color: colors.textDark }]}>{viewingReview}</Text></ScrollView>
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary, marginTop: 24 }]} onPress={() => setViewReview(null)}><Text style={styles.saveBtnText}>Close</Text></TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
       {/* DELETE CONFIRMATION MODAL */}
       <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.card, paddingBottom: 32 }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.danger }]}>Delete Book?</Text>
-              <TouchableOpacity onPress={() => setShowDeleteModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity>
-            </View>
-            <Text style={{ color: colors.textLight, fontSize: 16, marginBottom: 24, textAlign: 'center' }}>
-              Are you sure you want to delete this book from your shelf? This action cannot be undone.
-            </Text>
+            <View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.danger }]}>Delete Book?</Text><TouchableOpacity onPress={() => setShowDeleteModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View>
+            <Text style={{ color: colors.textLight, fontSize: 16, marginBottom: 24, textAlign: 'center' }}>Are you sure you want to delete this book from your shelf? This action cannot be undone.</Text>
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, marginTop: 0 }]} onPress={() => setShowDeleteModal(false)}>
-                <Text style={[styles.saveBtnText, { color: colors.textDark }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: colors.danger, marginTop: 0 }]} onPress={performDelete}>
-                <Text style={styles.saveBtnText}>Delete</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, marginTop: 0 }]} onPress={() => setShowDeleteModal(false)}><Text style={[styles.saveBtnText, { color: colors.textDark }]}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: colors.danger, marginTop: 0 }]} onPress={performDelete}><Text style={styles.saveBtnText}>Delete</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -344,27 +311,10 @@ const styles = StyleSheet.create({
   listContent: { paddingHorizontal: 16, paddingBottom: 100 },
   columnWrapper: { justifyContent: 'space-between', marginBottom: 16 },
   bookWrapper: { width: COLUMN_WIDTH },
-  topActions: { 
-    position: 'absolute', 
-    top: 8, 
-    right: 8, 
-    flexDirection: 'row', 
-    gap: 6, 
-    zIndex: 20 
-  },
-  actionIcon: { 
-    width: 32, 
-    height: 32, 
-    borderRadius: 10, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  bookCover: { width: '100%', aspectRatio: 2/3, borderRadius: 12, padding: 16, justifyContent: 'center', alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 4, height: 6 }, shadowOpacity: 0.4, shadowRadius: 8 },
+  coverContainer: { width: '100%', aspectRatio: 2/3 },
+  bookCover: { width: '100%', height: '100%', borderRadius: 12, padding: 16, justifyContent: 'center', alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 4, height: 6 }, shadowOpacity: 0.4, shadowRadius: 8 },
+  coverActions: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', gap: 4, zIndex: 20 },
+  actionIcon: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 2 },
   coverTexture: { position: 'absolute', left: 10, top: 0, bottom: 0, width: 3, backgroundColor: 'rgba(0,0,0,0.15)' },
   coverTitle: { color: 'white', fontSize: 15, fontWeight: '900', textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 },
   coverDivider: { width: 30, height: 2, backgroundColor: 'rgba(255,255,255,0.4)', marginVertical: 10 },
@@ -375,24 +325,8 @@ const styles = StyleSheet.create({
   miniRatingText: { color: 'white', fontSize: 9, fontWeight: 'bold', marginLeft: 2 },
   emptyState: { alignItems: 'center', marginTop: 100 },
   emptyText: { marginTop: 16, fontSize: 16, fontWeight: '600' },
-  modalOverlay: { 
-    flex: 1, 
-    backgroundColor: 'rgba(0,0,0,0.7)', 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    padding: 24 
-  },
-  modalContent: { 
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: 28, 
-    padding: 24, 
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalContent: { width: '100%', maxWidth: 400, borderRadius: 28, padding: 24, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, width: '100%' },
   modalTitle: { fontSize: 24, fontWeight: '900' },
   yearOption: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', padding: 18, borderRadius: 16, marginBottom: 8 },
@@ -408,5 +342,4 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', gap: 12, marginTop: 12, justifyContent: 'center' },
   saveBtn: { width: '100%', height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 32 },
   saveBtnText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  reviewText: { fontSize: 16, lineHeight: 24, fontWeight: '500' },
 });
