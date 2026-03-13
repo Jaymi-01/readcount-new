@@ -173,12 +173,12 @@ export default function LibraryScreen() {
             <Text style={styles.coverAuthor} numberOfLines={1}>{item.author}</Text>
             <View style={styles.coverFooter}>
               <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
-              {item.rating && item.rating > 0 && (
+              {item.rating && item.rating > 0 ? (
                 <View style={styles.miniRating}>
                   <Ionicons name="star" size={10} color="#ebcb8b" />
                   <Text style={styles.miniRatingText}>{item.rating}</Text>
                 </View>
-              )}
+              ) : null}
             </View>
           </TouchableOpacity>
           
