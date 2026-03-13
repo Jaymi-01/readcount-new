@@ -144,7 +144,7 @@ export default function AchievementsScreen() {
         if (date?.toDate) date = date.toDate();
         else if (date?.seconds) date = new Date(date.seconds * 1000);
         else date = new Date(date);
-        return { ...data, processedDate: date };
+        return { ...data, processedDate: date } as any;
       }).sort((a, b) => a.processedDate.getTime() - b.processedDate.getTime());
 
       const toReadCount = toReadSnap.size;
@@ -386,6 +386,24 @@ const styles = StyleSheet.create({
   trophyItem: { width: (SCREEN_WIDTH - 32) / 3, alignItems: 'center', marginBottom: 24, paddingHorizontal: 4 },
   trophyCircle: { width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginBottom: 8, elevation: 2, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
   miniBadge: { position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
+  streakBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
+    zIndex: 10,
+  },
+  streakText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: '900',
+  },
   trophyLabel: { fontSize: 11, fontWeight: 'bold', textAlign: 'center', lineHeight: 14 },
   progressCount: { fontSize: 10, fontWeight: '700', marginTop: 2 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 32 },
