@@ -20,7 +20,6 @@ service cloud.firestore {
 
     // --- USERS COLLECTION ---
     match /users/{userId} {
-      // Anyone logged in can see profiles, but only the owner can edit
       allow read: if isSignedIn();
       allow write: if isOwner(userId);
 
