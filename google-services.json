@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "759852590604",
+    "project_id": "readcount-aa5c2",
+    "storage_bucket": "readcount-aa5c2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:759852590604:android:4574cd174c82947a19f029",
+        "android_client_info": {
+          "package_name": "com.jaymi.readcountnew"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "759852590604-9tttgrajt973qkldqamp08d2hfojk46r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBcSTvtb2s_9Bcv-73GC19-J_7zIckXbk8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "759852590604-9tttgrajt973qkldqamp08d2hfojk46r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
