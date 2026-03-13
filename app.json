@@ -7,16 +7,14 @@
     "icon": "./assets/images/icon.png",
     "scheme": "readcountnew",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/readcount2.png",
-        "backgroundImage": "./assets/images/readcount2.png",
-        "monochromeImage": "./assets/images/readcount2.png"
+        "backgroundColor": "#6366f1",
+        "foregroundImage": "./assets/images/readcount2.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
