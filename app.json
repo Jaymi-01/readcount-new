@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "readcountnew",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jaymi.readcountnew"
@@ -17,11 +16,10 @@
         "backgroundColor": "#6366f1",
         "foregroundImage": "./assets/images/readcount2.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.jaymi.readcountnew"
+      "package": "com.jaymi.readcountnew",
+      "googleServicesFile": "./google-services.json"
     },
-    "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
