@@ -23,6 +23,12 @@ service cloud.firestore {
       // Anyone logged in can see profiles, but only the owner can edit
       allow read: if isSignedIn();
       allow write: if isOwner(userId);
+
+      // Achievements subcollection
+      match /achievements/{achievementId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
     }
 
     // --- BOOKS COLLECTION ---
