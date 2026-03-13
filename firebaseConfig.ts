@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, initializeAuth, getReactNativePersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,16 +13,25 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase safely
+let app;
+if (!getApps().length) {
+  try {
+    app = initializeApp(firebaseConfig);
+  } catch (error) {
+    console.error("Firebase initialization error:", error);
+  }
+} else {
+  app = getApp();
+}
 
 // Initialize Auth with platform-specific persistence
 export const auth = Platform.OS === 'web' 
-  ? getAuth(app) 
-  : initializeAuth(app, {
+  ? getAuth(app!) 
+  : initializeAuth(app!, {
       persistence: getReactNativePersistence(ReactNativeAsyncStorage)
     });
 
-export const db = getFirestore(app);
+export const db = getFirestore(app!);
 
 export default app;
