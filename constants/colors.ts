@@ -1,60 +1,69 @@
 export type ThemeColors = typeof COLORS;
 
 export const COLORS = {
-    primary: '#6366f1', // Vibrant Indigo
-    primaryLight: '#e0e7ff', 
-    secondary: '#f43f5e', // Rose/Pink
-    background: '#f8fafc', // Slate 50
+    primary: '#5e81ac', // Nord Blue (Deep)
+    primaryLight: '#88c0d0', // Frost Blue
+    secondary: '#ebcb8b', // Nord Yellow/Gold (Accent)
+    background: '#eceff4', // Snow Storm (White/Gray)
     card: '#ffffff',
-    textDark: '#0f172a', // Slate 900
-    textLight: '#64748b', // Slate 500
+    textDark: '#2e3440', // Polar Night (Darkest)
+    textLight: '#4c566a', // Slate Gray
     white: '#ffffff',
     
-    // Status Colors (Vibrant)
-    reading: '#6366f1', // Indigo
-    readingBg: '#e0e7ff',
-    toRead: '#f59e0b', // Amber
-    toReadBg: '#fef3c7',
-    read: '#10b981',   // Emerald
-    readBg: '#d1fae5',
+    // Status Colors (Nord Style)
+    reading: '#81a1c1', // Glacial Blue
+    readingBg: '#d8dee9',
+    toRead: '#d08770', // Aurora Orange
+    toReadBg: '#e5e9f0',
+    read: '#a3be8c',   // Nord Green
+    readBg: '#ebf0e9',
 
-    danger: '#f43f5e', 
-    success: '#10b981',
-    border: '#e2e8f0',
+    danger: '#bf616a', // Aurora Red
+    success: '#a3be8c',
+    border: '#d8dee9', 
 
-    // Chart Palette (Vibrant)
+    // Chart & UI Accents (Nord Aurora Palette)
     chart: [
-        '#6366f1', '#f43f5e', '#10b981', '#f59e0b', 
-        '#8b5cf6', '#ec4899', '#06b6d4', '#f97316',
-        '#22c55e', '#ef4444', '#a855f7', '#3b82f6'
+        '#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb', 
+        '#a3be8c', '#ebcb8b', '#d08770', '#bf616a'
+    ],
+
+    // Book Cover Palette (Nordic cool tones)
+    covers: [
+        '#2e3440', '#3b4252', '#434c5e', '#4c566a',
+        '#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb'
     ]
 };
 
 export const darkColors: ThemeColors = {
-    primary: '#818cf8', 
-    primaryLight: '#312e81',
-    secondary: '#fb7185', 
-    background: '#020617', // Deep Midnight
-    card: '#0f172a', // Slate 900
-    textDark: '#f8fafc', 
-    textLight: '#94a3b8', 
+    primary: '#88c0d0', 
+    primaryLight: '#2e3440',
+    secondary: '#ebcb8b',
+    background: '#2e3440', // Deep Polar Night
+    card: '#3b4252',
+    textDark: '#eceff4', 
+    textLight: '#d8dee9', 
     white: '#ffffff',
     
-    // Status Colors (Dark mode adjusted)
-    reading: '#818cf8',
-    readingBg: '#1e1b4b',
-    toRead: '#fbbf24',
-    toReadBg: '#451a03',
-    read: '#34d399',
-    readBg: '#064e3b',
+    // Status Colors (Dark mode)
+    reading: '#88c0d0',
+    readingBg: '#434c5e',
+    toRead: '#d08770',
+    toReadBg: '#4c566a',
+    read: '#a3be8c',
+    readBg: '#434c5e',
 
-    danger: '#fb7185',
-    success: '#34d399',
-    border: '#1e293b',
+    danger: '#bf616a',
+    success: '#a3be8c',
+    border: '#434c5e',
 
     chart: [
-        '#818cf8', '#fb7185', '#34d399', '#fbbf24',
-        '#a78bfa', '#f472b6', '#22d3ee', '#fb923c',
-        '#4ade80', '#f87171', '#c084fc', '#60a5fa'
+        '#88c0d0', '#81a1c1', '#5e81ac', '#8fbcbb',
+        '#a3be8c', '#ebcb8b', '#d08770', '#bf616a'
+    ],
+    
+    covers: [
+        '#2e3440', '#3b4252', '#434c5e', '#4c566a',
+        '#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb'
     ]
 };
