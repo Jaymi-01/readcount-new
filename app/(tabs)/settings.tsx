@@ -108,7 +108,15 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.textLight }]}>PREFERENCES</Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.row}><Text style={[styles.label, { color: colors.textDark }]}>Dark Mode</Text><Switch value={theme === 'dark'} onValueChange={toggleTheme} trackColor={{ false: '#d8dee9', true: colors.primary }} thumbColor={colors.white} /></View>
+          <TouchableOpacity style={styles.row} onPress={toggleTheme}>
+            <View>
+              <Text style={[styles.label, { color: colors.textDark }]}>Theme</Text>
+              <Text style={[styles.value, { color: colors.textLight }]}>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</Text>
+            </View>
+            <View style={[styles.themeIconBtn, { backgroundColor: colors.primary + '15' }]}>
+              <Ionicons name={theme === 'dark' ? "moon" : "sunny"} size={20} color={colors.primary} />
+            </View>
+          </TouchableOpacity>
           <View style={styles.divider} />
           <TouchableOpacity style={styles.row} onPress={() => setShowReportModal(true)}><Text style={[styles.label, { color: colors.textDark }]}>Report an Issue</Text><Ionicons name="bug-outline" size={20} color={colors.textLight} /></TouchableOpacity>
         </View>
@@ -172,4 +180,5 @@ const styles = StyleSheet.create({
   typeRow: { flexDirection: 'row', gap: 8, marginBottom: 16, width: '100%' },
   typeBtn: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
   typeBtnText: { fontSize: 12, fontWeight: 'bold' },
+  themeIconBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
 });
