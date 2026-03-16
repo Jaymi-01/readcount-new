@@ -60,6 +60,9 @@ export default function LibraryScreen() {
   const [bookToDelete, setBookToDelete] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Inline Menu State
+  const [expandedBookId, setExpandedBookId] = useState<string | null>(null);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -74,6 +77,14 @@ export default function LibraryScreen() {
       }
     }, [user])
   );
+
+  const toggleInlineMenu = (id: string) => {
+    setExpandedBookId(expandedBookId === id ? null : id);
+  };
+
+  const closeExpandedMenu = () => {
+    if (expandedBookId) setExpandedBookId(null);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -127,7 +138,12 @@ export default function LibraryScreen() {
   };
 
   const openEditModal = (book: Book) => {
-    setEditingBook(book); setTitle(book.title); setAuthor(book.author); setStatus(book.status); setRating(book.rating || 0); setModalVisible(true);
+    setEditingBook(book); 
+    setTitle(book.title); 
+    setAuthor(book.author); 
+    setStatus(book.status); 
+    setRating(book.rating || 0); 
+    setModalVisible(true);
   };
 
   const confirmDelete = (id: string) => {
@@ -171,10 +187,12 @@ export default function LibraryScreen() {
 
   const renderBookItem = ({ item, index }: { item: Book, index: number }) => {
     const coverColor = colors.covers[index % colors.covers.length];
+    const isExpanded = expandedBookId === item.id;
+
     return (
       <Animated.View entering={FadeInDown.delay(index * 50).springify()} layout={Layout.springify()} style={styles.bookWrapper}>
         <View style={styles.coverContainer}>
-          <TouchableOpacity activeOpacity={0.9} style={[styles.bookCover, { backgroundColor: coverColor }]} onPress={() => openEditModal(item)}>
+          <View style={[styles.bookCover, { backgroundColor: coverColor }]}>
             <View style={styles.coverTexture} />
             <Text style={styles.coverTitle} numberOfLines={3}>{item.title}</Text>
             <View style={styles.coverDivider} />
@@ -188,13 +206,29 @@ export default function LibraryScreen() {
                 </View>
               ) : null}
             </View>
-          </TouchableOpacity>
-          
-          <View style={styles.coverActions}>
-            <TouchableOpacity style={styles.actionIcon} onPress={() => confirmDelete(item.id)}>
-              <Ionicons name="trash-outline" size={16} color="#FFF" />
-            </TouchableOpacity>
+
+            {isExpanded && (
+              <View style={[styles.inlineMenu, { backgroundColor: colors.card }]}>
+                <TouchableOpacity style={styles.inlineAction} onPress={() => { setExpandedBookId(null); openEditModal(item); }}>
+                  <Ionicons name="pencil" size={16} color={colors.primary} />
+                  <Text style={[styles.inlineActionText, { color: colors.textDark }]}>EDIT</Text>
+                </TouchableOpacity>
+                <View style={[styles.inlineDivider, { backgroundColor: colors.border }]} />
+                <TouchableOpacity style={styles.inlineAction} onPress={() => { setExpandedBookId(null); confirmDelete(item.id); }}>
+                  <Ionicons name="trash" size={16} color={colors.danger} />
+                  <Text style={[styles.inlineActionText, { color: colors.danger }]}>DELETE</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
+          
+          <TouchableOpacity 
+            style={styles.coverActions} 
+            onPress={() => toggleInlineMenu(item.id)}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="ellipsis-vertical" size={20} color="#FFF" />
+          </TouchableOpacity>
         </View>
       </Animated.View>
     );
@@ -202,45 +236,51 @@ export default function LibraryScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
-      
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.greeting, { color: colors.textLight }]}>Welcome back,</Text>
-          <Text style={[styles.username, { color: colors.textDark }]} numberOfLines={1}>{displayName}</Text>
-        </View>
-        <TouchableOpacity style={[styles.filterChip, { backgroundColor: colors.card, borderColor: selectedYear !== 'All' ? colors.primary : colors.border }]} onPress={() => setShowFilterModal(true)}>
-          <Ionicons name="options-outline" size={20} color={selectedYear !== 'All' ? colors.primary : colors.textDark} />
-          {selectedYear !== 'All' && (
-            <View style={styles.activeFilterLabel}>
-              <Text style={[styles.filterYearText, { color: colors.primary }]}>{selectedYear}</Text>
-              <TouchableOpacity onPress={() => setSelectedYear('All')}><Ionicons name="close-circle" size={16} color={colors.primary} /></TouchableOpacity>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.searchSection}>
-        <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Ionicons name="search" size={18} color={colors.textLight} /><TextInput placeholder="Search shelf..." placeholderTextColor={colors.textLight} style={[styles.searchInput, { color: colors.textDark }]} value={searchQuery} onChangeText={setSearchQuery} />
-        </View>
-      </View>
-
-      <View style={styles.filterTabs}>
-        {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
-          <TouchableOpacity key={s} onPress={() => setFilterStatus(s)} style={[styles.tab, filterStatus === s && { borderBottomColor: colors.primary, borderBottomWidth: 3 }]}>
-            <Text style={[styles.tabText, { color: filterStatus === s ? colors.textDark : colors.textLight }]}>{s === 'toread' ? 'TO READ' : s.toUpperCase()} ({getTabCount(s)})</Text>
+      <TouchableOpacity 
+        activeOpacity={1} 
+        style={{ flex: 1 }} 
+        onPress={closeExpandedMenu}
+      >
+        <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
+        
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.greeting, { color: colors.textLight }]}>Welcome back,</Text>
+            <Text style={[styles.username, { color: colors.textDark }]} numberOfLines={1}>{displayName}</Text>
+          </View>
+          <TouchableOpacity style={[styles.filterChip, { backgroundColor: colors.card, borderColor: selectedYear !== 'All' ? colors.primary : colors.border }]} onPress={() => setShowFilterModal(true)}>
+            <Ionicons name="options-outline" size={20} color={selectedYear !== 'All' ? colors.primary : colors.textDark} />
+            {selectedYear !== 'All' && (
+              <View style={styles.activeFilterLabel}>
+                <Text style={[styles.filterYearText, { color: colors.primary }]}>{selectedYear}</Text>
+                <TouchableOpacity onPress={() => setSelectedYear('All')}><Ionicons name="close-circle" size={16} color={colors.primary} /></TouchableOpacity>
+              </View>
+            )}
           </TouchableOpacity>
-        ))}
-      </View>
+        </View>
 
-      {loading ? (
-        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
-      ) : (
-        <FlatList data={filteredBooks} renderItem={renderBookItem} keyExtractor={item => item.id} numColumns={2} contentContainerStyle={styles.listContent} columnWrapperStyle={styles.columnWrapper} showsVerticalScrollIndicator={false} ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="library-outline" size={64} color={colors.border} /><Text style={[styles.emptyText, { color: colors.textLight }]}>No books found</Text></View>} />
-      )}
+        <View style={styles.searchSection}>
+          <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Ionicons name="search" size={18} color={colors.textLight} /><TextInput placeholder="Search shelf..." placeholderTextColor={colors.textLight} style={[styles.searchInput, { color: colors.textDark }]} value={searchQuery} onChangeText={setSearchQuery} />
+          </View>
+        </View>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={() => { resetForm(); setModalVisible(true); }}><Ionicons name="add" size={32} color="white" /></TouchableOpacity>
+        <View style={styles.filterTabs}>
+          {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
+            <TouchableOpacity key={s} onPress={() => setFilterStatus(s)} style={[styles.tab, filterStatus === s && { borderBottomColor: colors.primary, borderBottomWidth: 3 }]}>
+              <Text style={[styles.tabText, { color: filterStatus === s ? colors.textDark : colors.textLight }]}>{s === 'toread' ? 'TO READ' : s.toUpperCase()} ({getTabCount(s)})</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {loading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
+        ) : (
+          <FlatList data={filteredBooks} renderItem={renderBookItem} keyExtractor={item => item.id} numColumns={2} contentContainerStyle={styles.listContent} columnWrapperStyle={styles.columnWrapper} showsVerticalScrollIndicator={false} ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="library-outline" size={64} color={colors.border} /><Text style={[styles.emptyText, { color: colors.textLight }]}>No books found</Text></View>} />
+        )}
+
+        <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={() => { resetForm(); setModalVisible(true); }}><Ionicons name="add" size={32} color="white" /></TouchableOpacity>
+      </TouchableOpacity>
 
       {/* FILTER MODAL */}
       <Modal visible={showFilterModal} animationType="slide" transparent>
@@ -321,8 +361,7 @@ const styles = StyleSheet.create({
   bookWrapper: { width: COLUMN_WIDTH },
   coverContainer: { width: '100%', aspectRatio: 2/3 },
   bookCover: { width: '100%', height: '100%', borderRadius: 12, padding: 16, justifyContent: 'center', alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 4, height: 6 }, shadowOpacity: 0.4, shadowRadius: 8 },
-  coverActions: { position: 'absolute', top: 8, right: 8, flexDirection: 'row', gap: 4, zIndex: 20 },
-  actionIcon: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 2 },
+  coverActions: { position: 'absolute', top: 12, right: 12, zIndex: 20 },
   coverTexture: { position: 'absolute', left: 10, top: 0, bottom: 0, width: 3, backgroundColor: 'rgba(0,0,0,0.15)' },
   coverTitle: { color: 'white', fontSize: 15, fontWeight: '900', textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 },
   coverDivider: { width: 30, height: 2, backgroundColor: 'rgba(255,255,255,0.4)', marginVertical: 10 },
@@ -350,4 +389,14 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', gap: 12, marginTop: 12, justifyContent: 'center' },
   saveBtn: { width: '100%', height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 32 },
   saveBtnText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  menuContent: { width: '85%', maxWidth: 340, borderRadius: 24, padding: 24, elevation: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20 },
+  menuTitle: { fontSize: 18, fontWeight: '900', textTransform: 'uppercase', marginBottom: 12, textAlign: 'center' },
+  menuDivider: { height: 1, width: '100%', marginBottom: 16, opacity: 0.1 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 16 },
+  menuIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  menuText: { fontSize: 16, fontWeight: '800' },
+  inlineMenu: { position: 'absolute', top: 12, right: 12, width: '60%', borderRadius: 16, paddingVertical: 4, zIndex: 50, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' },
+  inlineAction: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 16, width: '100%' },
+  inlineActionText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  inlineDivider: { height: 1, width: '100%', opacity: 0.1 },
 });
