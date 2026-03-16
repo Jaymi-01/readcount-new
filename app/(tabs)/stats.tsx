@@ -190,7 +190,7 @@ export default function StatsScreen() {
       const topAuthEntry = Object.entries(authors).sort((a,b) => b[1] - a[1])[0];
       setTopAuthor(topAuthEntry ? topAuthEntry[0] : 'None');
 
-      if (count >= 20) setPersonality({ title: 'The Speed Demon', icon: 'flash', desc: 'You tear through books like they are nothing!' });
+      if (count >= 20) setPersonality({ title: 'The Speed Demon', icon: 'bicycle', desc: 'You tear through books like they are nothing!' });
       else if (topAuthEntry && topAuthEntry[1] >= 3) setPersonality({ title: 'The Loyal Fan', icon: 'heart', desc: `You really love ${topAuthEntry[0]}'s work!` });
       else if (count >= 10) setPersonality({ title: 'The Scholar', icon: 'school', desc: 'A dedicated reader with a wide range of interests.' });
       else if (count > 0) setPersonality({ title: 'The Casual Voyager', icon: 'boat', desc: 'Enjoying the journey, one page at a time.' });
