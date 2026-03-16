@@ -19,7 +19,7 @@ export default function ReadingWidget({ data }: { data: WidgetData }) {
         style={{
           flex: 1,
           padding: 16,
-          backgroundColor: '#6366f1', // Vibrant Indigo
+          backgroundColor: '#bc6c25', // Rich Burnt Sienna
           borderRadius: 24,
           flexDirection: 'column',
           justifyContent: 'space-between',

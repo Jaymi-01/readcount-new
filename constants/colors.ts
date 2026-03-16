@@ -1,69 +1,69 @@
 export type ThemeColors = typeof COLORS;
 
 export const COLORS = {
-    primary: '#5e81ac', // Nord Blue (Deep)
-    primaryLight: '#88c0d0', // Frost Blue
-    secondary: '#ebcb8b', // Nord Yellow/Gold (Accent)
-    background: '#eceff4', // Snow Storm (White/Gray)
-    card: '#ffffff',
-    textDark: '#2e3440', // Polar Night (Darkest)
-    textLight: '#4c566a', // Slate Gray
+    primary: '#bc6c25', // Rich Wood (Tiger's Eye)
+    primaryLight: '#faedcd', // Warm Cream wash
+    secondary: '#f59e0b', // Golden Amber
+    background: '#f2e8cf', // Warm Sepia Background
+    card: '#fdfbf0', // Light Paper/Sepia Card
+    textDark: '#432818', // Deep Coffee/Chocolate
+    textLight: '#99582a', // Medium Brown/Sienna
     white: '#ffffff',
     
-    // Status Colors (Nord Style)
-    reading: '#81a1c1', // Glacial Blue
-    readingBg: '#d8dee9',
-    toRead: '#d08770', // Aurora Orange
-    toReadBg: '#e5e9f0',
-    read: '#a3be8c',   // Nord Green
-    readBg: '#ebf0e9',
+    // Status Colors (Warm & Earthy)
+    reading: '#dda15e', // Golden Ochre
+    readingBg: '#fef3c7',
+    toRead: '#92400e', // Deep Amber/Wood
+    toReadBg: '#faedcd',
+    read: '#432818',   // Ink Black/Brown
+    readBg: '#f2e8cf',
 
-    danger: '#bf616a', // Aurora Red
-    success: '#a3be8c',
-    border: '#d8dee9', 
+    danger: '#bc4749', // Muted Brick Red
+    success: '#bc6c25',
+    border: '#dda15e80', // Ochre Border
 
-    // Chart & UI Accents (Nord Aurora Palette)
+    // Chart & UI Accents (Monochromatic Warm Palette)
     chart: [
-        '#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb', 
-        '#a3be8c', '#ebcb8b', '#d08770', '#bf616a'
+        '#bc6c25', '#dda15e', '#f59e0b', '#92400e', 
+        '#432818', '#99582a', '#bc4749', '#603808'
     ],
 
-    // Book Cover Palette (Nordic cool tones)
+    // Book Cover Palette (Rich leather and wood tones)
     covers: [
-        '#2e3440', '#3b4252', '#434c5e', '#4c566a',
-        '#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb'
+        '#bc6c25', '#92400e', '#603808', '#432818',
+        '#dda15e', '#f59e0b', '#99582a', '#bc4749'
     ]
 };
 
 export const darkColors: ThemeColors = {
-    primary: '#88c0d0', 
-    primaryLight: '#2e3440',
-    secondary: '#ebcb8b',
-    background: '#2e3440', // Deep Polar Night
-    card: '#3b4252',
-    textDark: '#eceff4', 
-    textLight: '#d8dee9', 
+    primary: '#dda15e', // Lighter Ochre for dark mode
+    primaryLight: '#432818', // Deep Coffee wash
+    secondary: '#fbbf24', // Brighter Amber
+    background: '#1a120b', // Deepest Ebony
+    card: '#2c1e14', // Rich Cocoa
+    textDark: '#f2e8cf', // Sepia Tinted White
+    textLight: '#b08968', // Light Cocoa/Tan
     white: '#ffffff',
     
-    // Status Colors (Dark mode)
-    reading: '#88c0d0',
-    readingBg: '#434c5e',
-    toRead: '#d08770',
-    toReadBg: '#4c566a',
-    read: '#a3be8c',
-    readBg: '#434c5e',
+    // Status Colors (Dark mode adjusted)
+    reading: '#dda15e',
+    readingBg: '#432818',
+    toRead: '#bc6c25',
+    toReadBg: '#2c1e14',
+    read: '#f2e8cf',
+    readBg: '#432818',
 
-    danger: '#bf616a',
-    success: '#a3be8c',
-    border: '#434c5e',
+    danger: '#bc4749',
+    success: '#dda15e',
+    border: '#432818',
 
     chart: [
-        '#88c0d0', '#81a1c1', '#5e81ac', '#8fbcbb',
-        '#a3be8c', '#ebcb8b', '#d08770', '#bf616a'
+        '#dda15e', '#bc6c25', '#fbbf24', '#f2e8cf',
+        '#bc4749', '#99582a', '#603808', '#432818'
     ],
     
     covers: [
-        '#2e3440', '#3b4252', '#434c5e', '#4c566a',
-        '#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb'
+        '#bc6c25', '#92400e', '#603808', '#432818',
+        '#dda15e', '#f59e0b', '#99582a', '#bc4749'
     ]
 };
