@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, 
-  ActivityIndicator, SafeAreaView, Platform, StatusBar, Dimensions, ScrollView
+  ActivityIndicator, SafeAreaView, Platform, StatusBar, Dimensions, ScrollView, KeyboardAvoidingView, Keyboard
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../firebaseConfig';
@@ -13,9 +13,9 @@ import {
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import Toast from 'react-native-toast-message';
-import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
+import Animated, { FadeInDown, Layout, FadeIn, FadeOut } from 'react-native-reanimated';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface Note {
   id: string;
@@ -35,11 +35,12 @@ export default function NotesScreen() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Modal State
-  const [modalVisible, setModalVisible] = useState(false);
+  // Editor State
+  const [editorVisible, setEditorVisible] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Delete Confirmation
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
@@ -52,39 +53,62 @@ export default function NotesScreen() {
     return unsubscribe;
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
+  const fetchNotes = useCallback(() => {
+    if (!user) {
+      setLoading(false);
+      return () => {};
+    }
     
     const q = query(
       collection(db, 'notes'), 
-      where('userId', '==', user.uid),
-      orderBy('updatedAt', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notesData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Note[];
-      setNotes(notesData);
+      const notesData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.title || '',
+          content: data.content || '',
+          userId: data.userId,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+        };
+      }) as Note[];
+
+      const sortedNotes = notesData.sort((a, b) => {
+        const timeA = a.updatedAt?.seconds || 0;
+        const timeB = b.updatedAt?.seconds || 0;
+        return timeB - timeA;
+      });
+
+      setNotes(sortedNotes);
       setLoading(false);
     }, (error) => {
-      console.error("Notes error:", error);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return unsubscribe;
   }, [user]);
 
+  useEffect(() => {
+    const unsubscribe = fetchNotes();
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [fetchNotes]);
+
   const handleSaveNote = async () => {
-    if (!noteContent.trim()) {
-      Toast.show({ type: 'error', text1: 'Note content is required' });
+    if (!noteContent.trim() && !noteTitle.trim()) {
+      setEditorVisible(false);
       return;
     }
 
+    setIsSaving(true);
     try {
       const noteData = {
-        title: noteTitle.trim() || 'Untitled Note',
+        title: noteTitle.trim(),
         content: noteContent.trim(),
         userId: user?.uid,
         updatedAt: Timestamp.now(),
@@ -92,18 +116,18 @@ export default function NotesScreen() {
 
       if (editingNote) {
         await updateDoc(doc(db, 'notes', editingNote.id), noteData);
-        Toast.show({ type: 'success', text1: 'Note updated' });
       } else {
         await addDoc(collection(db, 'notes'), {
           ...noteData,
           createdAt: Timestamp.now(),
         });
-        Toast.show({ type: 'success', text1: 'Note saved' });
       }
-      setModalVisible(false);
+      setEditorVisible(false);
       resetForm();
     } catch (e: any) {
       Toast.show({ type: 'error', text1: 'Error saving note' });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -113,11 +137,15 @@ export default function NotesScreen() {
     setNoteContent('');
   };
 
-  const openEditNote = (note: Note) => {
-    setEditingNote(note);
-    setNoteTitle(note.title);
-    setNoteContent(note.content);
-    setModalVisible(true);
+  const openEditor = (note: Note | null = null) => {
+    if (note) {
+      setEditingNote(note);
+      setNoteTitle(note.title);
+      setNoteContent(note.content);
+    } else {
+      resetForm();
+    }
+    setEditorVisible(true);
   };
 
   const confirmDelete = (id: string) => {
@@ -129,7 +157,6 @@ export default function NotesScreen() {
     if (!noteToDelete) return;
     try {
       await deleteDoc(doc(db, 'notes', noteToDelete));
-      Toast.show({ type: 'success', text1: 'Note deleted' });
       setShowDeleteModal(false);
       setNoteToDelete(null);
     } catch (e: any) {
@@ -151,36 +178,90 @@ export default function NotesScreen() {
       >
         <TouchableOpacity 
           style={[styles.noteCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => openEditNote(item)}
+          onPress={() => openEditor(item)}
           activeOpacity={0.7}
         >
-          <View style={styles.noteHeader}>
+          {item.title ? (
             <Text style={[styles.noteTitle, { color: colors.textDark }]} numberOfLines={1}>
               {item.title}
             </Text>
-            <TouchableOpacity onPress={() => confirmDelete(item.id)}>
-              <Ionicons name="trash-outline" size={18} color={colors.danger} />
-            </TouchableOpacity>
-          </View>
-          <Text style={[styles.noteContent, { color: colors.textLight }]} numberOfLines={3}>
+          ) : null}
+          <Text style={[styles.noteContent, { color: colors.textLight }]} numberOfLines={4}>
             {item.content}
           </Text>
-          <Text style={[styles.noteDate, { color: colors.textLight }]}>
-            {item.updatedAt?.toDate?.()?.toLocaleDateString() || 'Just now'}
-          </Text>
+          <View style={styles.noteFooter}>
+            <Text style={[styles.noteDate, { color: colors.textLight }]}>
+              {item.updatedAt?.toDate?.()?.toLocaleDateString() || 'Just now'}
+            </Text>
+            <TouchableOpacity onPress={() => confirmDelete(item.id)} style={styles.deleteBtn}>
+              <Ionicons name="trash-outline" size={16} color={colors.danger} />
+            </TouchableOpacity>
+          </View>
         </TouchableOpacity>
       </Animated.View>
     );
   };
+
+  if (editorVisible) {
+    return (
+      <SafeAreaView style={[styles.editorContainer, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
+        <View style={styles.editorHeader}>
+          <TouchableOpacity onPress={handleSaveNote} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={28} color={colors.primary} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity 
+            onPress={handleSaveNote} 
+            disabled={isSaving}
+            style={[styles.doneBtn, { backgroundColor: colors.primary + '15' }]}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={[styles.doneBtnText, { color: colors.primary }]}>Done</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={{ flex: 1 }}
+        >
+          <ScrollView contentContainerStyle={styles.editorScroll} showsVerticalScrollIndicator={false}>
+            <TextInput
+              style={[styles.titleInput, { color: colors.textDark }]}
+              placeholder="Title"
+              placeholderTextColor={colors.textLight + '80'}
+              value={noteTitle}
+              onChangeText={setNoteTitle}
+              multiline
+            />
+            <View style={[styles.editorDivider, { backgroundColor: colors.border }]} />
+            <TextInput
+              style={[styles.contentInput, { color: colors.textDark }]}
+              placeholder="Start writing..."
+              placeholderTextColor={colors.textLight + '80'}
+              value={noteContent}
+              onChangeText={setNoteContent}
+              multiline
+              autoFocus={!editingNote}
+              textAlignVertical="top"
+            />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.textDark }]}>Personal Notes</Text>
+        <Text style={[styles.headerTitle, { color: colors.textDark }]}>My Notes</Text>
         <Text style={[styles.headerSubtitle, { color: colors.textLight }]}>
-          Thoughts, highlights, and summaries
+          {notes.length} {notes.length === 1 ? 'note' : 'notes'}
         </Text>
       </View>
 
@@ -188,7 +269,7 @@ export default function NotesScreen() {
         <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Ionicons name="search" size={18} color={colors.textLight} />
           <TextInput 
-            placeholder="Search your notes..." 
+            placeholder="Search notes..." 
             placeholderTextColor={colors.textLight}
             style={[styles.searchInput, { color: colors.textDark }]}
             value={searchQuery}
@@ -206,9 +287,11 @@ export default function NotesScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="journal-outline" size={64} color={colors.border} />
+              <Ionicons name="document-text-outline" size={64} color={colors.border} />
               <Text style={[styles.emptyText, { color: colors.textLight }]}>No notes yet</Text>
             </View>
           }
@@ -217,74 +300,28 @@ export default function NotesScreen() {
 
       <TouchableOpacity 
         style={[styles.fab, { backgroundColor: colors.primary }]} 
-        onPress={() => { resetForm(); setModalVisible(true); }}
+        onPress={() => openEditor()}
       >
         <Ionicons name="add" size={32} color="white" />
       </TouchableOpacity>
 
-      {/* ADD/EDIT MODAL */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.textDark }]}>
-                {editingNote ? 'Edit Note' : 'New Note'}
-              </Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.textDark} />
-              </TouchableOpacity>
-            </View>
-            
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.inputLabel}>Title</Text>
-              <TextInput 
-                style={[styles.input, { color: colors.textDark, borderColor: colors.border }]}
-                value={noteTitle}
-                onChangeText={setNoteTitle}
-                placeholder="Optional title"
-                placeholderTextColor={colors.textLight}
-              />
-              
-              <Text style={styles.inputLabel}>Content</Text>
-              <TextInput 
-                style={[styles.contentInput, { color: colors.textDark, borderColor: colors.border }]}
-                value={noteContent}
-                onChangeText={setNoteContent}
-                placeholder="Write your thoughts..."
-                placeholderTextColor={colors.textLight}
-                multiline
-                textAlignVertical="top"
-              />
-
-              <TouchableOpacity 
-                style={[styles.saveBtn, { backgroundColor: colors.primary }]} 
-                onPress={handleSaveNote}
-              >
-                <Text style={styles.saveBtnText}>Save Note</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
       {/* DELETE CONFIRMATION */}
       <Modal visible={showDeleteModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card, paddingBottom: 32 }]}>
-            <Text style={[styles.modalTitle, { color: colors.danger, marginBottom: 12, textAlign: 'center' }]}>Delete Note?</Text>
-            <Text style={{ color: colors.textLight, fontSize: 16, marginBottom: 24, textAlign: 'center' }}>Are you sure? This note will be gone forever.</Text>
-            <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.textDark, textAlign: 'center' }]}>Delete Note?</Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
               <TouchableOpacity 
-                style={[styles.saveBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, marginTop: 0 }]} 
+                style={[styles.smallBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]} 
                 onPress={() => setShowDeleteModal(false)}
               >
-                <Text style={[styles.saveBtnText, { color: colors.textDark }]}>Cancel</Text>
+                <Text style={{ color: colors.textDark, fontWeight: '700' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={[styles.saveBtn, { flex: 1, backgroundColor: colors.danger, marginTop: 0 }]} 
+                style={[styles.smallBtn, { flex: 1, backgroundColor: colors.danger }]} 
                 onPress={performDelete}
               >
-                <Text style={styles.saveBtnText}>Delete</Text>
+                <Text style={{ color: 'white', fontWeight: '700' }}>Delete</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -297,28 +334,38 @@ export default function NotesScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 24, paddingTop: Platform.OS === 'android' ? 40 : 20, marginBottom: 20 },
-  headerTitle: { fontSize: 28, fontWeight: '900' },
-  headerSubtitle: { fontSize: 14, fontWeight: '600', marginTop: 4 },
+  headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
+  headerSubtitle: { fontSize: 14, fontWeight: '700', marginTop: 4, opacity: 0.6 },
   searchSection: { paddingHorizontal: 24, marginBottom: 16 },
   searchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: 44, borderRadius: 12, borderWidth: 1 },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14, fontWeight: '600' },
-  listContent: { paddingHorizontal: 24, paddingBottom: 180 },
-  noteWrapper: { marginBottom: 16 },
-  noteCard: { padding: 16, borderRadius: 16, borderWidth: 1, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 },
-  noteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  noteTitle: { fontSize: 18, fontWeight: '800', flex: 1, marginRight: 12 },
-  noteContent: { fontSize: 14, lineHeight: 20, marginBottom: 12 },
-  noteDate: { fontSize: 11, fontWeight: '700', opacity: 0.6 },
-  emptyState: { alignItems: 'center', marginTop: 100 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 180 },
+  columnWrapper: { justifyContent: 'space-between', marginBottom: 16 },
+  noteWrapper: { width: (SCREEN_WIDTH - 48) / 2 },
+  noteCard: { padding: 16, borderRadius: 20, borderWidth: 1, minHeight: 120, justifyContent: 'space-between' },
+  noteTitle: { fontSize: 16, fontWeight: '900', marginBottom: 6 },
+  noteContent: { fontSize: 13, lineHeight: 18, opacity: 0.8 },
+  noteFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
+  noteDate: { fontSize: 10, fontWeight: '800', opacity: 0.5 },
+  deleteBtn: { padding: 4 },
+  emptyState: { alignItems: 'center', marginTop: 100, width: SCREEN_WIDTH - 32 },
   emptyText: { marginTop: 16, fontSize: 16, fontWeight: '600' },
-  fab: { position: 'absolute', bottom: 100, right: 24, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, zIndex: 100 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalContent: { width: '100%', maxWidth: 450, borderRadius: 28, padding: 24, elevation: 10 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  modalTitle: { fontSize: 24, fontWeight: '900' },
-  inputLabel: { fontSize: 13, fontWeight: '800', marginBottom: 8, marginTop: 16, textTransform: 'uppercase', opacity: 0.6 },
-  input: { width: '100%', borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 16, fontWeight: '600' },
-  contentInput: { width: '100%', borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 16, minHeight: 200 },
-  saveBtn: { width: '100%', height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginTop: 32 },
-  saveBtnText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  fab: { position: 'absolute', bottom: 100, right: 24, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 },
+  
+  // Editor Styles
+  editorContainer: { flex: 1 },
+  editorHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  backBtn: { padding: 4 },
+  doneBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
+  doneBtnText: { fontSize: 15, fontWeight: '900' },
+  editorScroll: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 100 },
+  titleInput: { fontSize: 28, fontWeight: '900', marginBottom: 12 },
+  editorDivider: { height: 1, width: 40, marginBottom: 20, opacity: 0.2 },
+  contentInput: { fontSize: 17, lineHeight: 26, minHeight: SCREEN_HEIGHT * 0.6 },
+  
+  // Modal Styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 40 },
+  modalContent: { width: '100%', borderRadius: 24, padding: 24, elevation: 10 },
+  modalTitle: { fontSize: 20, fontWeight: '900' },
+  smallBtn: { height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
 });

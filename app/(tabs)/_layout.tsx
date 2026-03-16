@@ -68,21 +68,21 @@ export default function TabLayout() {
             tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "book" : "book-outline"} color={color} />,
           }}
         />
-        
-        {/* DM feature removed as requested */}
-        <Tabs.Screen
-          name="dm"
-          options={{
-            href: null,
-          }}
-        />
 
         <Tabs.Screen
           name="notes"
           options={{
             title: 'Notes',
+            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "document-text" : "document-text-outline"} color={color} />,
+          }}
+        />
+
+        <Tabs.Screen
+          name="stats"
+          options={{
+            title: 'Stats',
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons size={36} name={focused ? "journal" : "journal-outline"} color={color} />
+              <Ionicons size={36} name={focused ? "stats-chart" : "stats-chart-outline"} color={color} />
             ),
             tabBarButton: (props) => (
               <CustomTabBarButton 
@@ -91,14 +91,6 @@ export default function TabLayout() {
                 focused={props.accessibilityState?.selected}
               />
             ),
-          }}
-        />
-
-        <Tabs.Screen
-          name="stats"
-          options={{
-            title: 'Stats',
-            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "stats-chart" : "stats-chart-outline"} color={color} />,
           }}
         />
 
@@ -117,6 +109,9 @@ export default function TabLayout() {
             tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "settings" : "settings-outline"} color={color} />,
           }}
         />
+
+        {/* Hidden Screens */}
+        <Tabs.Screen name="dm" options={{ href: null }} />
       </Tabs>
     </View>
   );
