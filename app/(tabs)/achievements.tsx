@@ -25,6 +25,7 @@ interface Achievement {
 
 const CATEGORIES = [
   { id: 'basics', title: 'THE JOURNEY BEGINS' },
+  { id: 'habits', title: 'DAILY RITUALS' },
   { id: 'speed', title: 'SPEED MILESTONES' },
   { id: 'variety', title: 'AUTHOR EXPLORATION' },
   { id: 'critics', title: 'CRITIC CIRCLE' },
@@ -33,17 +34,24 @@ const CATEGORIES = [
 
 const ACHIEVEMENT_DEFINITIONS: Achievement[] = [
   { id: 'first_step', category: 'basics', title: 'First Step', desc: 'Mark your first book as read', howToEarn: 'marking your first book as finished.', icon: 'footsteps', unlocked: false },
+  { id: 'quick_start', category: 'basics', title: 'Quick Start', desc: 'Add 3 books to your library', howToEarn: 'adding your first 3 books to your collection.', icon: 'rocket', total: 3, unlocked: false },
   { id: 'the_finisher', category: 'basics', title: 'The Finisher', desc: 'Reach your annual reading goal', howToEarn: 'completing your annual reading goal!', icon: 'trophy', unlocked: false },
   { id: 'night_owl', category: 'basics', title: 'Night Owl', desc: 'Add a book after 11 PM', howToEarn: 'starting a new book late at night.', icon: 'moon', unlocked: false },
   
+  { id: 'page_turner', category: 'habits', title: 'Page Turner', desc: 'Move a book to Reading', howToEarn: 'starting to read a book from your list.', icon: 'book', unlocked: false },
+  { id: 'weekend_warrior', category: 'habits', title: 'Weekend Warrior', desc: 'Finish a book on the weekend', howToEarn: 'completing a book on a Saturday or Sunday.', icon: 'sunny', unlocked: false },
+  { id: 'morning_reader', category: 'habits', title: 'Early Bird', desc: 'Finish a book before 9 AM', howToEarn: 'completing a book early in the morning.', icon: 'sunrise', unlocked: false },
+
   { id: 'speedy_reader', category: 'speed', title: 'Speedy Reader', desc: 'Finish 5 books in a month', howToEarn: 'finishing 5 books in a single month.', icon: 'bicycle', total: 5, unlocked: false },
   { id: 'speed_demon', category: 'speed', title: 'Speed Demon', desc: 'Finish 10 books in a month', howToEarn: 'finishing 10 books in a single month.', icon: 'flash', total: 10, unlocked: false },
   { id: 'speed_god', category: 'speed', title: 'Speed God', desc: 'Finish 30 books in a month', howToEarn: 'finishing 30 books in a single month! Absolute legend.', icon: 'flame', total: 30, unlocked: false },
   
+  { id: 'double_feature', category: 'variety', title: 'Double Feature', desc: 'Reading 2 books at once', howToEarn: 'having two different books in your "Reading" list.', icon: 'duplicate', total: 2, unlocked: false },
   { id: 'author_bestie', category: 'variety', title: "Author's Bestie", desc: 'Read 5 books by one author', howToEarn: 'reading 5 books by the same author.', icon: 'people', total: 5, unlocked: false },
   { id: 'the_polymath', category: 'variety', title: 'The Polymath', desc: 'Read 5 different authors', howToEarn: 'reading books from 5 different authors.', icon: 'globe', total: 5, unlocked: false },
   { id: 'variety_king', category: 'variety', title: 'Variety King', desc: 'Read 10 different authors', howToEarn: 'reading books from 10 different authors.', icon: 'color-palette', total: 10, unlocked: false },
   
+  { id: 'first_opinion', category: 'critics', title: 'First Opinion', desc: 'Rate your first book', howToEarn: 'sharing your very first book rating.', icon: 'star-outline', unlocked: false },
   { id: 'the_critic', category: 'critics', title: 'The Critic', desc: 'Rate 10 books', howToEarn: 'sharing your opinion and rating 10 books.', icon: 'star', total: 10, unlocked: false },
   { id: 'super_critic', category: 'critics', title: 'Super Critic', desc: 'Rate 25 books', howToEarn: 'sharing your opinion and rating 25 books.', icon: 'star-half', total: 25, unlocked: false },
   { id: 'consistent_reader', category: 'critics', title: 'Monthly Streak', desc: 'Read at least 1 book for 3 months', howToEarn: 'finishing at least one book for 3 months in a row.', icon: 'calendar', total: 3, unlocked: false },
@@ -112,24 +120,33 @@ export default function AchievementsScreen() {
   const [showModal, setShowModal] = useState(false);
 
   const backfillAchievements = async () => {
-    if (!user || user.email !== 'millerjoel7597@gmail.com') return;
+    if (!user) return;
     try {
-      const qRead = query(collection(db, 'books'), where('userId', '==', user.uid), where('status', '==', 'read'));
-      const qToRead = query(collection(db, 'books'), where('userId', '==', user.uid), where('status', '==', 'toread'));
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const [readSnap, toReadSnap] = await Promise.all([getDocs(qRead), getDocs(qToRead)]);
-      const readBooks = readSnap.docs.map(d => {
-        const data = d.data();
-        let date = data.dateFinished || data.dateAdded;
-        if (date?.toDate) date = date.toDate(); else if (date?.seconds) date = new Date(date.seconds * 1000); else date = new Date(date);
-        return { ...data, processedDate: date } as any;
+      const qAll = query(collection(db, 'books'), where('userId', '==', user.uid));
+      const allSnap = await getDocs(qAll);
+      const allBooks = allSnap.docs.map(doc => {
+        const d = doc.data();
+        let date = d.dateFinished || d.dateAdded;
+        let processedDate = new Date();
+        if (date?.toDate) processedDate = date.toDate();
+        else if (date?.seconds) processedDate = new Date(date.seconds * 1000);
+        else processedDate = new Date(date);
+        return { ...d, id: doc.id, processedDate };
       }).sort((a, b) => a.processedDate.getTime() - b.processedDate.getTime());
+
+      const readBooks = allBooks.filter(b => b.status === 'read');
+      const toReadCount = allBooks.filter(b => b.status === 'toread').length;
       
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
       const readingGoal = userDoc.data()?.readingGoal || 0;
-      const toReadCount = toReadSnap.size;
       const toUnlock: {[key: string]: {date: Timestamp, count?: number}} = {};
 
+      // Basics
       if (readBooks.length >= 1) toUnlock['first_step'] = { date: Timestamp.fromDate(readBooks[0].processedDate) };
+      if (allBooks.length >= 3) {
+        const thirdBook = [...allBooks].sort((a, b) => (a.dateAdded?.seconds || 0) - (b.dateAdded?.seconds || 0))[2];
+        toUnlock['quick_start'] = { date: thirdBook?.dateAdded || Timestamp.now() };
+      }
       
       const yearlyCounts: any = {};
       readBooks.forEach(b => { const y = b.processedDate.getFullYear(); yearlyCounts[y] = (yearlyCounts[y] || 0) + 1; });
@@ -137,34 +154,53 @@ export default function AchievementsScreen() {
       const currentYear = new Date().getFullYear();
       Object.entries(yearlyCounts).forEach(([year, count]: any) => {
         const y = parseInt(year);
-        const goal = y === currentYear ? readingGoal : 15; // User only read 14 in 2025, goal 15 keeps it locked.
+        const goal = y === currentYear ? readingGoal : 15;
         if (goal > 0 && count >= goal) { finisherStreak++; const lastBook = readBooks.filter(b => b.processedDate.getFullYear() === y).pop(); if (lastBook) lastGoalReachedDate = Timestamp.fromDate(lastBook.processedDate); }
       });
       if (finisherStreak > 0 && lastGoalReachedDate) toUnlock['the_finisher'] = { date: lastGoalReachedDate, count: finisherStreak };
 
+      // Collection
       if (toReadCount >= 10) toUnlock['the_archivist'] = { date: Timestamp.now() };
       if (toReadCount >= 5) toUnlock['cant_make_up_mind'] = { date: Timestamp.now() };
       if (toReadCount >= 3) toUnlock['indecisive'] = { date: Timestamp.now() };
 
+      // Variety
       const uniqueAuthors = new Set(); let polyAuthorCount = 0;
       for (const b of readBooks) {
         if (!uniqueAuthors.has(b.author)) {
           uniqueAuthors.add(b.author); polyAuthorCount++;
-          if (polyAuthorCount === 5) toUnlock['the_polymath'] = { date: (user.email === 'millerjoel7597@gmail.com' && b.processedDate.getFullYear() === 2026) ? Timestamp.fromDate(new Date(2025, 11, 15)) : Timestamp.fromDate(b.processedDate) };
+          if (polyAuthorCount === 5) toUnlock['the_polymath'] = { date: Timestamp.fromDate(b.processedDate) };
           if (polyAuthorCount === 10) toUnlock['variety_king'] = { date: Timestamp.fromDate(b.processedDate) };
         }
       }
 
+      // Critics
       const ratedBooks = readBooks.filter(b => (b.rating && b.rating > 0) || b.review === 'good' || b.review === 'bad');
+      if (ratedBooks.length >= 1) toUnlock['first_opinion'] = { date: Timestamp.fromDate(ratedBooks[0].processedDate) };
       if (ratedBooks.length >= 10) toUnlock['the_critic'] = { date: Timestamp.fromDate(ratedBooks[9].processedDate) };
       if (ratedBooks.length >= 25) toUnlock['super_critic'] = { date: Timestamp.fromDate(ratedBooks[24].processedDate) };
 
+      // Authors
       const authorGroups: any = {};
       readBooks.forEach(b => { authorGroups[b.author] = (authorGroups[b.author] || 0) + 1; if (authorGroups[b.author] === 5) toUnlock['author_bestie'] = { date: Timestamp.fromDate(b.processedDate) }; });
+
+      // Habits & Speed
+      readBooks.forEach(b => {
+        const day = b.processedDate.getDay();
+        const hour = b.processedDate.getHours();
+        if (day === 0 || day === 6) toUnlock['weekend_warrior'] = { date: Timestamp.fromDate(b.processedDate) };
+        if (hour < 9) toUnlock['morning_reader'] = { date: Timestamp.fromDate(b.processedDate) };
+      });
 
       const monthlyGroups: any = {};
       readBooks.forEach(b => { const key = `${b.processedDate.getFullYear()}-${b.processedDate.getMonth()}`; if (!monthlyGroups[key]) monthlyGroups[key] = []; monthlyGroups[key].push(b); });
       Object.values(monthlyGroups).forEach((books: any) => { const mCount = books.length; const lastBookDate = Timestamp.fromDate(books[books.length - 1].processedDate); if (mCount >= 30) toUnlock['speed_god'] = { date: lastBookDate }; if (mCount >= 10) toUnlock['speed_demon'] = { date: lastBookDate }; if (mCount >= 5) toUnlock['speedy_reader'] = { date: lastBookDate }; });
+
+      if (allBooks.some(b => b.status === 'reading')) {
+        const readingBook = allBooks.find(b => b.status === 'reading');
+        toUnlock['page_turner'] = { date: readingBook?.dateStartedReading || readingBook?.dateAdded || Timestamp.now() };
+      }
+      if (new Set(allBooks.filter(b => b.status === 'reading').map(b => b.author)).size >= 2) toUnlock['double_feature'] = { date: Timestamp.now() };
 
       const allDefIds = ACHIEVEMENT_DEFINITIONS.map(d => d.id);
       for (const id of allDefIds) {
@@ -173,12 +209,6 @@ export default function AchievementsScreen() {
         if (toUnlock[id]) {
           const data = toUnlock[id];
           if (!achSnap.exists()) await setDoc(achRef, { unlocked: true, unlockedAt: data.date, count: data.count || 1 });
-          else {
-            const existingDate = achSnap.data().unlockedAt?.toDate ? achSnap.data().unlockedAt.toDate() : new Date(achSnap.data().unlockedAt?.seconds * 1000);
-            if (existingDate.getFullYear() === 2026 && data.date.toDate().getFullYear() === 2025) await setDoc(achRef, { unlocked: true, unlockedAt: data.date, count: data.count || achSnap.data().count || 1 });
-          }
-        } else if (achSnap.exists() && (id === 'the_finisher' || id.includes('speed') || id.includes('toread'))) {
-          await deleteDoc(achRef);
         }
       }
     } catch (e) { console.error("Backfill error:", e); }
@@ -198,11 +228,15 @@ export default function AchievementsScreen() {
       const allBooks = snapshot.docs.map(d => d.data());
       const readBooks = allBooks.filter(b => b.status === 'read');
       const toReadCount = allBooks.filter(b => b.status === 'toread').length;
+      const readingCount = allBooks.filter(b => b.status === 'reading').length;
       const prog: any = {};
+      prog['quick_start'] = Math.min(allBooks.length, 3);
       prog['indecisive'] = Math.min(toReadCount, 3); prog['cant_make_up_mind'] = Math.min(toReadCount, 5); prog['the_archivist'] = Math.min(toReadCount, 10);
+      prog['double_feature'] = Math.min(new Set(allBooks.filter(b => b.status === 'reading').map(b => b.author)).size, 2);
       const uniqueAuthorsCount = new Set(readBooks.map(b => b.author)).size;
       prog['the_polymath'] = Math.min(uniqueAuthorsCount, 5); prog['variety_king'] = Math.min(uniqueAuthorsCount, 10);
       const ratedCount = readBooks.filter(b => (b.rating && b.rating > 0) || b.review === 'good' || b.review === 'bad').length;
+      prog['first_opinion'] = Math.min(ratedCount, 1);
       prog['the_critic'] = Math.min(ratedCount, 10); prog['super_critic'] = Math.min(ratedCount, 25);
       const now = new Date();
       const thisMonthCount = readBooks.filter(b => {
