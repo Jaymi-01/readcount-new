@@ -39,22 +39,25 @@ export default function TabLayout() {
           tabBarStyle: {
             backgroundColor: colors.card,
             borderTopWidth: 0,
-            height: Platform.OS === 'ios' ? 90 : 70,
-            paddingBottom: Platform.OS === 'ios' ? 30 : 10,
+            height: Platform.OS === 'ios' ? 100 : 80,
+            paddingBottom: Platform.OS === 'ios' ? 35 : 15,
+            paddingTop: 12,
             elevation: 25,
             shadowColor: colors.textDark,
             shadowOffset: { width: 0, height: -10 },
             shadowOpacity: 0.1,
             shadowRadius: 15,
-            borderTopLeftRadius: 25,
-            borderTopRightRadius: 25,
             position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
           },
           tabBarLabelStyle: {
             fontWeight: '800',
             fontSize: 10,
             textTransform: 'uppercase',
             letterSpacing: 0.5,
+            marginTop: 4,
           },
           headerShown: false,
         }}>
@@ -62,14 +65,14 @@ export default function TabLayout() {
           name="library"
           options={{
             title: 'Library',
-            tabBarIcon: ({ color, focused }) => <Ionicons size={24} name={focused ? "book" : "book-outline"} color={color} />,
+            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "book" : "book-outline"} color={color} />,
           }}
         />
         <Tabs.Screen
           name="dm"
           options={{
             title: 'Chat',
-            tabBarIcon: ({ color, focused }) => <Ionicons size={24} name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} color={color} />,
+            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} color={color} />,
           }}
         />
         <Tabs.Screen
@@ -77,7 +80,7 @@ export default function TabLayout() {
           options={{
             title: 'Stats',
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons size={32} name={focused ? "stats-chart" : "stats-chart-outline"} color={color} />
+              <Ionicons size={36} name={focused ? "stats-chart" : "stats-chart-outline"} color={color} />
             ),
             tabBarButton: (props) => (
               <CustomTabBarButton 
@@ -92,14 +95,14 @@ export default function TabLayout() {
           name="achievements"
           options={{
             title: 'Trophies',
-            tabBarIcon: ({ color, focused }) => <Ionicons size={24} name={focused ? "trophy" : "trophy-outline"} color={color} />,
+            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "trophy" : "trophy-outline"} color={color} />,
           }}
         />
         <Tabs.Screen
           name="settings"
           options={{
             title: 'Settings',
-            tabBarIcon: ({ color, focused }) => <Ionicons size={24} name={focused ? "settings" : "settings-outline"} color={color} />,
+            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "settings" : "settings-outline"} color={color} />,
           }}
         />
       </Tabs>
@@ -109,14 +112,13 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   middleButtonContainer: {
-    top: -25,
+    top: -35,
     justifyContent: 'center',
     alignItems: 'center',
     width: 70,
     height: 70,
     borderRadius: 35,
     borderWidth: 4,
-    // Custom shadow for the bulge
     elevation: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 5 },
