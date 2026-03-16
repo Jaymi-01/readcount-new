@@ -313,7 +313,7 @@ export default function StatsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
-  scrollContent: { padding: 24 },
+  scrollContent: { padding: 24, paddingBottom: 150 },
   header: { marginBottom: 24 },
   headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1, marginBottom: 16 },
   yearScroll: { marginTop: 8 },

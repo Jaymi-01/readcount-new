@@ -361,7 +361,7 @@ export default function AchievementsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
-  scrollContent: { padding: 16, paddingBottom: 100 },
+  scrollContent: { padding: 16, paddingBottom: 150 },
   header: { padding: 24, paddingBottom: 32 },
   headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
   headerSubtitle: { fontSize: 12, fontWeight: '800', marginTop: 8, letterSpacing: 1, textTransform: 'uppercase', opacity: 0.5 },
