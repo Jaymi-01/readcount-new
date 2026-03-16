@@ -20,6 +20,7 @@ import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import { collection, onSnapshot, query, where, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import Toast from 'react-native-toast-message';
 
 interface User {
@@ -37,20 +38,28 @@ export default function DMScreen() {
   const { theme } = useTheme();
   const colors = theme === 'dark' ? darkColors : COLORS;
   const router = useRouter();
+  const [user, setUser] = useState<FirebaseUser | null>(auth.currentUser);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<{ [userId: string]: number }>({});
   
-  const currentUser = auth.currentUser;
-  const isAdmin = currentUser?.email === ADMIN_EMAIL;
+  const isAdmin = user?.email === ADMIN_EMAIL;
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     const usersRef = collection(db, 'users');
     const unsubscribe = onSnapshot(usersRef, (snapshot) => {
       const usersList: User[] = [];
-      const currentUserId = auth.currentUser?.uid;
+      const currentUserId = user?.uid;
 
       snapshot.forEach((doc) => {
         const data = doc.data();
@@ -73,13 +82,13 @@ export default function DMScreen() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!user) return;
 
     const chatsRef = collection(db, 'chats');
-    const q = query(chatsRef, where('participants', 'array-contains', currentUser.uid));
+    const q = query(chatsRef, where('participants', 'array-contains', user.uid));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const counts: { [userId: string]: number } = {};
@@ -87,10 +96,10 @@ export default function DMScreen() {
       snapshot.forEach((doc) => {
         const data = doc.data();
         const participants = data.participants as string[];
-        const otherUserId = participants.find(uid => uid !== currentUser.uid);
+        const otherUserId = participants.find(uid => uid !== user.uid);
         
         if (otherUserId && data.unreadCounts) {
-           const myUnreadCount = data.unreadCounts[currentUser.uid] || 0;
+           const myUnreadCount = data.unreadCounts[user.uid] || 0;
            if (myUnreadCount > 0) {
              counts[otherUserId] = myUnreadCount;
            }
@@ -98,11 +107,11 @@ export default function DMScreen() {
       });
       setUnreadCounts(counts);
     }, (error) => {
-      console.error("Error listening to unread counts:", error);
+      console.error("Error listening to chats:", error);
     });
 
     return () => unsubscribe();
-  }, [currentUser]);
+  }, [user]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

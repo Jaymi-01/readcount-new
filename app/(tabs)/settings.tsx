@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc, updateDoc, deleteDoc, Timestamp, addDoc, collection } from 'firebase/firestore';
-import { updateProfile, deleteUser, signOut } from 'firebase/auth';
+import { updateProfile, deleteUser, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import Toast from 'react-native-toast-message';
@@ -13,7 +13,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const colors = theme === 'dark' ? darkColors : COLORS;
-  const user = auth.currentUser;
+  const [user, setUser] = useState<User | null>(auth.currentUser);
 
   const [username, setUsername] = useState('');
   const [newUsername, setNewUsername] = useState('');
@@ -32,8 +32,15 @@ export default function SettingsScreen() {
   const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
-    fetchUserData();
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    fetchUserData();
+  }, [user]);
 
   const fetchUserData = async () => {
     if (!user) { setLoading(false); return; }

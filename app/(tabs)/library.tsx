@@ -6,6 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
   collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, 
   doc, Timestamp, getDoc, setDoc, getDocs 
@@ -36,7 +37,7 @@ interface Book {
 export default function LibraryScreen() {
   const { theme } = useTheme();
   const colors = theme === 'dark' ? darkColors : COLORS;
-  const user = auth.currentUser;
+  const [user, setUser] = useState<User | null>(auth.currentUser);
 
   const [allBooks, setAllBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,12 +60,19 @@ export default function LibraryScreen() {
   const [bookToDelete, setBookToDelete] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return unsubscribe;
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      if (auth.currentUser) {
-        setDisplayName(auth.currentUser.displayName || 'Reader');
+      if (user) {
+        setDisplayName(user.displayName || 'Reader');
       }
-    }, [])
+    }, [user])
   );
 
   useEffect(() => {
@@ -175,7 +183,7 @@ export default function LibraryScreen() {
               <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
               {item.rating && item.rating > 0 ? (
                 <View style={styles.miniRating}>
-                  <Ionicons name="star" size={10} color="#ebcb8b" />
+                  <Ionicons name="star" size={10} color={colors.secondary} />
                   <Text style={styles.miniRatingText}>{item.rating}</Text>
                 </View>
               ) : null}
@@ -266,7 +274,7 @@ export default function LibraryScreen() {
               {status === 'read' && (
                 <>
                   <Text style={styles.inputLabel}>Rating</Text>
-                  <View style={styles.ratingRow}>{[1, 2, 3, 4, 5].map((s) => (<TouchableOpacity key={s} onPress={() => setRating(s)}><Ionicons name={s <= rating ? "star" : "star-outline"} size={32} color={s <= rating ? "#ebcb8b" : colors.border} /></TouchableOpacity>))}</View>
+                  <View style={styles.ratingRow}>{[1, 2, 3, 4, 5].map((s) => (<TouchableOpacity key={s} onPress={() => setRating(s)}><Ionicons name={s <= rating ? "star" : "star-outline"} size={32} color={s <= rating ? colors.secondary : colors.border} /></TouchableOpacity>))}</View>
                 </>
               )}
               <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSaveBook}><Text style={styles.saveBtnText}>Save Book</Text></TouchableOpacity>

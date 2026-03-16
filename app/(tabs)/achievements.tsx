@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar, TouchableOpacity, Dimensions, Modal } from 'react-native';
 import { auth, db } from '../../firebaseConfig';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, onSnapshot, query, where, getDocs, doc, setDoc, getDoc, Timestamp, deleteDoc } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
@@ -120,7 +121,7 @@ function TrophyItem({ item, colors, onDetails, isGodModeUser }: { item: Achievem
 export default function AchievementsScreen() {
   const { theme } = useTheme();
   const colors = theme === 'dark' ? darkColors : COLORS;
-  const user = auth.currentUser;
+  const [user, setUser] = useState<User | null>(auth.currentUser);
   const isGodModeUser = user?.email === 'millerjoel7597@gmail.com';
 
   const [unlockedData, setUnlockedData] = useState<{[key: string]: any}>({});
@@ -128,6 +129,13 @@ export default function AchievementsScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedAch, setSelectedAch] = useState<Achievement | null>(null);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return unsubscribe;
+  }, []);
 
   const backfillAchievements = async () => {
     if (!user) return;

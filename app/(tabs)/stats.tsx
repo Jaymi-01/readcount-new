@@ -6,6 +6,7 @@ import { ActivityIndicator, Dimensions, Modal, Platform, SafeAreaView, ScrollVie
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { COLORS, darkColors } from '../../constants/colors';
 import { auth, db } from '../../firebaseConfig';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { useTheme } from '../context/ThemeContext';
 import Toast from 'react-native-toast-message';
 import { syncWidget } from '../../utils/widgetSync';
@@ -19,8 +20,8 @@ function ConfettiPiece({ index }: { index: number }) {
   const rotate = useSharedValue(0);
   const opacity = useSharedValue(1);
   const colors = [
-    '#5e81ac', '#81a1c1', '#88c0d0', '#8fbcbb', 
-    '#a3be8c', '#ebcb8b', '#d08770', '#bf616a'
+    '#bc6c25', '#dda15e', '#f59e0b', '#92400e', 
+    '#432818', '#99582a', '#bc4749', '#603808'
   ];
   const color = colors[index % colors.length];
 
@@ -61,6 +62,7 @@ function PollBar({
   relativeValue: number, 
   theme: string 
 }) {
+  const colors = theme === 'dark' ? darkColors : COLORS;
   const barWidth = useSharedValue(0);
   
   useFocusEffect(
@@ -76,12 +78,13 @@ function PollBar({
     
     return {
       width: `${barWidth.value * 100}%`,
-      backgroundColor: `rgba(${baseColor}, ${intensity})`,
+      backgroundColor: theme === 'dark' ? colors.primary : colors.primary, // Using direct primary
+      opacity: barWidth.value > 0 ? 0.3 + barWidth.value * 0.7 : 0,
     };
   });
 
   return (
-    <View style={[styles.barContainer, { backgroundColor: theme === 'dark' ? '#2e3440' : '#eceff4' }]}>
+    <View style={[styles.barContainer, { backgroundColor: colors.border + '40' }]}>
       <Animated.View style={[styles.monthBar, animatedStyle]} />
     </View>
   );
@@ -90,7 +93,7 @@ function PollBar({
 export default function StatsScreen() {
   const { theme } = useTheme();
   const colors = theme === 'dark' ? darkColors : COLORS;
-  const user = auth.currentUser;
+  const [user, setUser] = useState<User | null>(auth.currentUser);
 
   const [loading, setLoading] = useState(true);
   const [booksReadThisYear, setBooksReadThisYear] = useState(0);
@@ -105,6 +108,13 @@ export default function StatsScreen() {
   const [personality, setPersonality] = useState({ title: '', icon: '', desc: '' });
 
   const progressValue = useSharedValue(0);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -261,7 +271,7 @@ export default function StatsScreen() {
               return null;
             })()}
           </View>
-          <View style={[styles.progressBarBg, { backgroundColor: theme === 'dark' ? '#2e3440' : '#eceff4' }]}>
+          <View style={[styles.progressBarBg, { backgroundColor: colors.border + '40' }]}>
             <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: selectedYear === 'All' ? '100%' : `${Math.min((booksReadThisYear / (yearlyGoal || 1)) * 100, 100)}%` }]} />
           </View>
           <Text style={[styles.progressText, { color: colors.textDark }]}>{selectedYear === 'All' ? `TOTAL BOOKS FINISHED` : yearlyGoal > 0 ? `${Math.round((booksReadThisYear / (yearlyGoal || 1)) * 100)}% REACHED` : "SET A GOAL IN SETTINGS"}</Text>
