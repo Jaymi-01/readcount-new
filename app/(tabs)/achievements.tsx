@@ -4,7 +4,7 @@ import { auth, db } from '../../firebaseConfig';
 import { collection, onSnapshot, query, where, getDocs, doc, setDoc, getDoc, Timestamp, deleteDoc } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSequence } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
 
@@ -17,6 +17,7 @@ interface Achievement {
   desc: string;
   howToEarn: string;
   icon: any;
+  iconFamily?: 'Ionicons' | 'MaterialCommunityIcons';
   unlocked: boolean;
   unlockedAt?: any;
   progress?: number;
@@ -36,7 +37,8 @@ const ACHIEVEMENT_DEFINITIONS: Achievement[] = [
   { id: 'first_step', category: 'basics', title: 'First Step', desc: 'Mark your first book as read', howToEarn: 'marking your first book as finished.', icon: 'footsteps', unlocked: false },
   { id: 'quick_start', category: 'basics', title: 'Quick Start', desc: 'Add 3 books to your library', howToEarn: 'adding your first 3 books to your collection.', icon: 'rocket', total: 3, unlocked: false },
   { id: 'the_finisher', category: 'basics', title: 'The Finisher', desc: 'Reach your annual reading goal', howToEarn: 'completing your annual reading goal!', icon: 'trophy', unlocked: false },
-  { id: 'night_owl', category: 'basics', title: 'Night Owl', desc: 'Add a book after 11 PM', howToEarn: 'starting a new book late at night.', icon: 'owl', unlocked: false },
+  { id: 'night_owl', category: 'basics', title: 'Night Owl', desc: 'Add a book after 11 PM', howToEarn: 'starting a new book late at night.', icon: 'owl', iconFamily: 'MaterialCommunityIcons', unlocked: false },
+  { id: 'godmode', category: 'basics', title: 'God Mode', desc: 'The Creator', howToEarn: 'being the one who built this entire universe.', icon: 'color-wand', unlocked: false },
   
   { id: 'page_turner', category: 'habits', title: 'Page Turner', desc: 'Move a book to Reading', howToEarn: 'starting to read a book from your list.', icon: 'book', unlocked: false },
   { id: 'weekend_warrior', category: 'habits', title: 'Weekend Warrior', desc: 'Finish a book on the weekend', howToEarn: 'completing a book on a Saturday or Sunday.', icon: 'cafe', unlocked: false },
@@ -61,7 +63,7 @@ const ACHIEVEMENT_DEFINITIONS: Achievement[] = [
   { id: 'the_archivist', category: 'collection', title: 'The Archivist', desc: 'Have 10 books in To-Read', howToEarn: 'having 10 books in your To-Read list.', icon: 'layers', total: 10, unlocked: false },
 ];
 
-function TrophyItem({ item, colors, onDetails }: { item: Achievement, colors: any, onDetails: (a: Achievement) => void }) {
+function TrophyItem({ item, colors, onDetails, isGodModeUser }: { item: Achievement, colors: any, onDetails: (a: Achievement) => void, isGodModeUser: boolean }) {
   const scale = useSharedValue(1);
   const glowOpacity = useSharedValue(0.4);
 
@@ -81,6 +83,9 @@ function TrophyItem({ item, colors, onDetails }: { item: Achievement, colors: an
     onDetails(item);
   };
 
+  const showRealInfo = item.unlocked || isGodModeUser;
+  const IconComponent = item.iconFamily === 'MaterialCommunityIcons' ? MaterialCommunityIcons : Ionicons;
+
   return (
     <TouchableOpacity activeOpacity={0.8} onPress={handlePress} style={styles.trophyItem}>
       <Animated.View style={[
@@ -88,7 +93,7 @@ function TrophyItem({ item, colors, onDetails }: { item: Achievement, colors: an
         { backgroundColor: item.unlocked ? colors.primary : 'rgba(0,0,0,0.05)', borderColor: item.unlocked ? colors.primary : colors.border, shadowColor: colors.primary },
         animatedStyle
       ]}>
-        <Ionicons name={item.unlocked ? item.icon : 'help-outline'} size={28} color={item.unlocked ? '#FFF' : colors.textLight} />
+        <IconComponent name={showRealInfo ? item.icon : 'help-outline'} size={28} color={item.unlocked ? '#FFF' : colors.textLight} />
         {item.id === 'the_finisher' && item.unlocked && item.progress && item.progress > 0 && (
           <View style={[styles.streakBadge, { backgroundColor: colors.secondary }]}>
             <Text style={styles.streakText}>{item.progress}</Text>
@@ -100,7 +105,7 @@ function TrophyItem({ item, colors, onDetails }: { item: Achievement, colors: an
           </View>
         )}
       </Animated.View>
-      <Text style={[styles.trophyLabel, { color: colors.textDark }]} numberOfLines={1}>{item.unlocked ? item.title : '???'}</Text>
+      <Text style={[styles.trophyLabel, { color: colors.textDark }]} numberOfLines={1}>{showRealInfo ? item.title : '???'}</Text>
       {!item.unlocked && item.total && (
         <Text style={[styles.progressCount, { color: colors.textLight }]}>{item.progress || 0} / {item.total}</Text>
       )}
@@ -112,6 +117,7 @@ export default function AchievementsScreen() {
   const { theme } = useTheme();
   const colors = theme === 'dark' ? darkColors : COLORS;
   const user = auth.currentUser;
+  const isGodModeUser = user?.email === 'millerjoel7597@gmail.com';
 
   const [unlockedData, setUnlockedData] = useState<{[key: string]: any}>({});
   const [liveProgress, setLiveProgress] = useState<{[key: string]: number}>({});
@@ -201,6 +207,7 @@ export default function AchievementsScreen() {
         toUnlock['page_turner'] = { date: readingBook?.dateStartedReading || readingBook?.dateAdded || Timestamp.now() };
       }
       if (new Set(allBooks.filter(b => b.status === 'reading').map(b => b.author)).size >= 2) toUnlock['double_feature'] = { date: Timestamp.now() };
+      if (user.email === 'millerjoel7597@gmail.com') toUnlock['godmode'] = { date: Timestamp.now() };
 
       const allDefIds = ACHIEVEMENT_DEFINITIONS.map(d => d.id);
       for (const id of allDefIds) {
@@ -258,12 +265,14 @@ export default function AchievementsScreen() {
     return () => { unsubscribeAch(); unsubscribeBooks(); };
   }, [user]);
 
-  const achievements: Achievement[] = ACHIEVEMENT_DEFINITIONS.map(def => ({
-    ...def,
-    unlocked: !!unlockedData[def.id],
-    unlockedAt: unlockedData[def.id]?.unlockedAt,
-    progress: def.id === 'the_finisher' ? unlockedData[def.id]?.count : liveProgress[def.id],
-  }));
+  const achievements: Achievement[] = ACHIEVEMENT_DEFINITIONS
+    .filter(def => def.id !== 'godmode' || isGodModeUser)
+    .map(def => ({
+      ...def,
+      unlocked: !!unlockedData[def.id],
+      unlockedAt: unlockedData[def.id]?.unlockedAt,
+      progress: def.id === 'the_finisher' ? unlockedData[def.id]?.count : liveProgress[def.id],
+    }));
 
   const openDetails = (ach: Achievement) => { setSelectedAch(ach); setShowModal(true); };
 
@@ -283,7 +292,7 @@ export default function AchievementsScreen() {
             <Text style={[styles.categoryTitle, { color: colors.textLight }]}>{cat.title}</Text>
             <View style={styles.grid}>
               {achievements.filter(a => a.category === cat.id).map(item => (
-                <TrophyItem key={item.id} item={item} colors={colors} onDetails={openDetails} />
+                <TrophyItem key={item.id} item={item} colors={colors} onDetails={openDetails} isGodModeUser={isGodModeUser} />
               ))}
             </View>
           </View>
@@ -295,10 +304,15 @@ export default function AchievementsScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             {selectedAch && (
               <>
-                <View style={[styles.modalIconContainer, { backgroundColor: colors.primaryLight }]}><Ionicons name={selectedAch.unlocked ? selectedAch.icon : 'lock-closed'} size={48} color={colors.primary} /></View>
+                <View style={[styles.modalIconContainer, { backgroundColor: colors.primaryLight }]}>
+                  {(() => {
+                    const IconComp = selectedAch.iconFamily === 'MaterialCommunityIcons' ? MaterialCommunityIcons : Ionicons;
+                    return <IconComp name={(selectedAch.unlocked || isGodModeUser) ? selectedAch.icon : 'lock-closed'} size={48} color={colors.primary} />;
+                  })()}
+                </View>
                 <Text style={[styles.unlockedDate, { color: colors.textLight }]}>{!selectedAch.unlocked ? 'LOCKED' : (selectedAch.unlockedAt?.toDate ? selectedAch.unlockedAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'UNLOCKED')}</Text>
-                <Text style={[styles.modalTitle, { color: colors.textDark }]}>{selectedAch.unlocked ? (<>You earned <Text style={{ color: colors.primary }}>{selectedAch.title}</Text></>) : (<Text style={{ color: colors.textLight }}>Mystery Trophy</Text>)}</Text>
-                <Text style={[styles.modalHow, { color: colors.textLight }]}>{selectedAch.unlocked ? `by ${selectedAch.howToEarn}` : "Keep reading to unlock this achievement!"}</Text>
+                <Text style={[styles.modalTitle, { color: colors.textDark }]}>{(selectedAch.unlocked || isGodModeUser) ? (<>You earned <Text style={{ color: colors.primary }}>{selectedAch.title}</Text></>) : (<Text style={{ color: colors.textLight }}>Mystery Trophy</Text>)}</Text>
+                <Text style={[styles.modalHow, { color: colors.textLight }]}>{selectedAch.unlocked ? `by ${selectedAch.howToEarn}` : (isGodModeUser ? `God Mode Hint: ${selectedAch.howToEarn}` : "Keep reading to unlock this achievement!")}</Text>
                 <TouchableOpacity style={[styles.closeBtn, { backgroundColor: selectedAch.unlocked ? colors.primary : colors.textLight }]} onPress={() => setShowModal(false)}><Text style={styles.closeBtnText}>{selectedAch.unlocked ? "AWESOME!" : "I'M ON IT!"}</Text></TouchableOpacity>
               </>
             )}
