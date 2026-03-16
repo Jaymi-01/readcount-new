@@ -68,19 +68,21 @@ export default function TabLayout() {
             tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "book" : "book-outline"} color={color} />,
           }}
         />
+        
+        {/* DM feature removed as requested */}
         <Tabs.Screen
           name="dm"
           options={{
-            title: 'Chat',
-            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} color={color} />,
+            href: null,
           }}
         />
+
         <Tabs.Screen
-          name="stats"
+          name="notes"
           options={{
-            title: 'Stats',
+            title: 'Notes',
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons size={36} name={focused ? "stats-chart" : "stats-chart-outline"} color={color} />
+              <Ionicons size={36} name={focused ? "journal" : "journal-outline"} color={color} />
             ),
             tabBarButton: (props) => (
               <CustomTabBarButton 
@@ -91,6 +93,15 @@ export default function TabLayout() {
             ),
           }}
         />
+
+        <Tabs.Screen
+          name="stats"
+          options={{
+            title: 'Stats',
+            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "stats-chart" : "stats-chart-outline"} color={color} />,
+          }}
+        />
+
         <Tabs.Screen
           name="achievements"
           options={{
@@ -98,6 +109,7 @@ export default function TabLayout() {
             tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "trophy" : "trophy-outline"} color={color} />,
           }}
         />
+
         <Tabs.Screen
           name="settings"
           options={{
