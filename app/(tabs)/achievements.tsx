@@ -28,6 +28,7 @@ const CATEGORIES = [
   { id: 'basics', title: 'THE JOURNEY BEGINS' },
   { id: 'habits', title: 'DAILY RITUALS' },
   { id: 'speed', title: 'SPEED MILESTONES' },
+  { id: 'streaks', title: 'CONSISTENCY MATTERS' },
   { id: 'variety', title: 'AUTHOR EXPLORATION' },
   { id: 'critics', title: 'CRITIC CIRCLE' },
   { id: 'collection', title: 'SHELF MASTER' },
@@ -37,19 +38,22 @@ const ACHIEVEMENT_DEFINITIONS: Achievement[] = [
   { id: 'first_step', category: 'basics', title: 'First Step', desc: 'Mark your first book as read', howToEarn: 'marking your first book as finished.', icon: 'footsteps', unlocked: false },
   { id: 'quick_start', category: 'basics', title: 'Quick Start', desc: 'Add 3 books to your library', howToEarn: 'adding your first 3 books to your collection.', icon: 'rocket', total: 3, unlocked: false },
   { id: 'the_finisher', category: 'basics', title: 'The Finisher', desc: 'Reach your annual reading goal', howToEarn: 'completing your annual reading goal!', icon: 'trophy', unlocked: false },
+  { id: 'page_turner', category: 'basics', title: 'Page Turner', desc: 'Move a book to Reading', howToEarn: 'starting to read a book from your list.', icon: 'book', unlocked: false },
   { id: 'godmode', category: 'basics', title: 'The Creator', desc: 'The Creator', howToEarn: 'being the one who built this entire universe.', icon: 'code-slash', unlocked: false },
   
-  { id: 'page_turner', category: 'habits', title: 'Page Turner', desc: 'Move a book to Reading', howToEarn: 'starting to read a book from your list.', icon: 'book', unlocked: false },
   { id: 'weekend_warrior', category: 'habits', title: 'Weekend Warrior', desc: 'Finish a book on the weekend', howToEarn: 'completing a book on a Saturday or Sunday.', icon: 'cafe', unlocked: false },
   { id: 'morning_reader', category: 'habits', title: 'Early Bird', desc: 'Finish a book before 9 AM', howToEarn: 'completing a book early in the morning.', icon: 'alarm', unlocked: false },
   { id: 'night_owl', category: 'habits', title: 'Night Owl', desc: 'Add a book after 11 PM', howToEarn: 'starting a new book late at night.', icon: 'owl', iconFamily: 'MaterialCommunityIcons', unlocked: false },
-  { id: 'consistent_reader', category: 'habits', title: 'Monthly Streak', desc: 'Read at least 1 book for 3 months', howToEarn: 'finishing at least one book for 3 months in a row.', icon: 'calendar', total: 3, unlocked: false },
-  { id: 'double_feature', category: 'habits', title: 'Double Feature', desc: 'Reading 2 books at once', howToEarn: 'having two different books in your "Reading" list.', icon: 'albums', total: 2, unlocked: false },
 
   { id: 'speedy_reader', category: 'speed', title: 'Speedy Reader', desc: 'Finish 5 books in a month', howToEarn: 'finishing 5 books in a single month.', icon: 'walk', total: 5, unlocked: false },
   { id: 'speed_demon', category: 'speed', title: 'Speed Demon', desc: 'Finish 10 books in a month', howToEarn: 'finishing 10 books in a single month.', icon: 'bicycle', total: 10, unlocked: false },
   { id: 'speed_god', category: 'speed', title: 'Speed God', desc: 'Finish 30 books in a month', howToEarn: 'finishing 30 books in a single month! Absolute legend.', icon: 'flame', total: 30, unlocked: false },
+
+  { id: 'consistent_reader', category: 'streaks', title: '3 Month Streak', desc: 'Read at least 1 book for 3 months', howToEarn: 'finishing at least one book for 3 months in a row.', icon: 'calendar', total: 3, unlocked: false },
+  { id: 'half_year_streak', category: 'streaks', title: '6 Month Streak', desc: 'Read at least 1 book for 6 months', howToEarn: 'finishing at least one book for 6 months in a row.', icon: 'calendar-number', total: 6, unlocked: false },
+  { id: 'year_streak', category: 'streaks', title: 'The Yearly Cycle', desc: 'Read at least 1 book for 12 months', howToEarn: 'finishing at least one book every month for an entire year!', icon: 'infinite', total: 12, unlocked: false },
   
+  { id: 'double_feature', category: 'variety', title: 'Double Feature', desc: 'Reading 2 books at once', howToEarn: 'having two different books in your "Reading" list.', icon: 'albums', total: 2, unlocked: false },
   { id: 'author_bestie', category: 'variety', title: "Author's Bestie", desc: 'Read 5 books by one author', howToEarn: 'reading 5 books by the same author.', icon: 'people', total: 5, unlocked: false },
   { id: 'the_polymath', category: 'variety', title: 'The Polymath', desc: 'Read 5 different authors', howToEarn: 'reading books from 5 different authors.', icon: 'globe', total: 5, unlocked: false },
   { id: 'variety_king', category: 'variety', title: 'Variety King', desc: 'Read 10 different authors', howToEarn: 'reading books from 10 different authors.', icon: 'color-palette', total: 10, unlocked: false },
@@ -209,6 +213,28 @@ export default function AchievementsScreen() {
       if (new Set(allBooks.filter(b => b.status === 'reading').map(b => b.author)).size >= 2) toUnlock['double_feature'] = { date: Timestamp.now() };
       if (user.email === 'millerjoel7597@gmail.com') toUnlock['godmode'] = { date: Timestamp.now() };
 
+      // Streaks logic for backfill
+      const monthMap: any = {};
+      readBooks.forEach(b => {
+        monthMap[`${b.processedDate.getFullYear()}-${b.processedDate.getMonth()}`] = b.processedDate;
+      });
+      let streak = 0;
+      let checkDate = new Date();
+      if (!monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) checkDate.setMonth(checkDate.getMonth() - 1);
+      
+      let lastIncludedDate = null;
+      for (let i = 0; i < 36; i++) {
+        const key = `${checkDate.getFullYear()}-${checkDate.getMonth()}`;
+        if (monthMap[key]) {
+          streak++;
+          lastIncludedDate = monthMap[key];
+          if (streak === 3) toUnlock['consistent_reader'] = { date: Timestamp.fromDate(lastIncludedDate) };
+          if (streak === 6) toUnlock['half_year_streak'] = { date: Timestamp.fromDate(lastIncludedDate) };
+          if (streak === 12) toUnlock['year_streak'] = { date: Timestamp.fromDate(lastIncludedDate) };
+          checkDate.setMonth(checkDate.getMonth() - 1);
+        } else break;
+      }
+
       const allDefIds = ACHIEVEMENT_DEFINITIONS.map(d => d.id);
       for (const id of allDefIds) {
         const achRef = doc(db, 'users', user.uid, 'achievements', id);
@@ -258,8 +284,10 @@ export default function AchievementsScreen() {
         monthMap[`${d.getFullYear()}-${d.getMonth()}`] = true;
       });
       let streak = 0; let checkDate = new Date(); if (!monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) checkDate.setMonth(checkDate.getMonth() - 1);
-      for (let i = 0; i < 12; i++) { if (monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) { streak++; checkDate.setMonth(checkDate.getMonth() - 1); } else break; }
+      for (let i = 0; i < 36; i++) { if (monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) { streak++; checkDate.setMonth(checkDate.getMonth() - 1); } else break; }
       prog['consistent_reader'] = Math.min(streak, 3);
+      prog['half_year_streak'] = Math.min(streak, 6);
+      prog['year_streak'] = Math.min(streak, 12);
       setLiveProgress(prog); setLoading(false);
     });
     return () => { unsubscribeAch(); unsubscribeBooks(); };
