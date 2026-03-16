@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   filterTabs: { flexDirection: 'row', paddingHorizontal: 24, marginBottom: 16, gap: 20 },
   tab: { paddingVertical: 8 },
   tabText: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
-  listContent: { paddingHorizontal: 16, paddingBottom: 150 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 180 },
   columnWrapper: { justifyContent: 'space-between', marginBottom: 16 },
   bookWrapper: { width: COLUMN_WIDTH },
   coverContainer: { width: '100%', aspectRatio: 2/3 },

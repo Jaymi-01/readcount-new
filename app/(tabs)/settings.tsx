@@ -160,7 +160,7 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingBottom: 150 },
+  container: { flex: 1, paddingBottom: 180 },
   header: { padding: 24, paddingTop: Platform.OS === 'android' ? 60 : 40 },
   headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
   section: { marginBottom: 32, paddingHorizontal: 20 },

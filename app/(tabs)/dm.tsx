@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
   },
   usersList: {
     paddingHorizontal: 24,
-    paddingBottom: 150,
+    paddingBottom: 180,
   },
   userCard: {
     flexDirection: 'row',
