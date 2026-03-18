@@ -236,13 +236,9 @@ export default function LibraryScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <TouchableOpacity 
-        activeOpacity={1} 
-        style={{ flex: 1 }} 
-        onPress={closeExpandedMenu}
-      >
-        <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
-        
+      <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
+      
+      <View style={{ flex: 1 }}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.greeting, { color: colors.textLight }]}>Welcome back,</Text>
@@ -276,11 +272,23 @@ export default function LibraryScreen() {
         {loading ? (
           <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
         ) : (
-          <FlatList data={filteredBooks} renderItem={renderBookItem} keyExtractor={item => item.id} numColumns={2} contentContainerStyle={styles.listContent} columnWrapperStyle={styles.columnWrapper} showsVerticalScrollIndicator={false} ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="library-outline" size={64} color={colors.border} /><Text style={[styles.emptyText, { color: colors.textLight }]}>No books found</Text></View>} />
+          <FlatList 
+            data={filteredBooks} 
+            renderItem={renderBookItem} 
+            keyExtractor={item => item.id} 
+            numColumns={2} 
+            contentContainerStyle={styles.listContent} 
+            columnWrapperStyle={styles.columnWrapper} 
+            showsVerticalScrollIndicator={false} 
+            style={{ flex: 1 }}
+            onScroll={closeExpandedMenu}
+            scrollEventThrottle={16}
+            ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="library-outline" size={64} color={colors.border} /><Text style={[styles.emptyText, { color: colors.textLight }]}>No books found</Text></View>} 
+          />
         )}
 
         <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={() => { resetForm(); setModalVisible(true); }}><Ionicons name="add" size={32} color="white" /></TouchableOpacity>
-      </TouchableOpacity>
+      </View>
 
       {/* FILTER MODAL */}
       <Modal visible={showFilterModal} animationType="slide" transparent>

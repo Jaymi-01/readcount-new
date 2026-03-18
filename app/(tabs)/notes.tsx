@@ -285,6 +285,7 @@ export default function NotesScreen() {
           data={filteredNotes} 
           renderItem={renderNoteItem} 
           keyExtractor={item => item.id}
+          style={{ flex: 1 }}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           numColumns={2}
