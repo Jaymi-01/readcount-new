@@ -96,7 +96,7 @@ export default function LibraryScreen() {
         let processedDate = new Date();
         if (date?.toDate) processedDate = date.toDate();
         else if (date?.seconds) processedDate = new Date(date.seconds * 1000);
-        else processedDate = new Date(date);
+        else if (date) processedDate = new Date(date);
 
         // Migrate legacy reviews to stars if rating is missing
         let migrateRating = d.rating || 0;
@@ -105,7 +105,11 @@ export default function LibraryScreen() {
 
         return { id: doc.id, ...d, processedDate, rating: migrateRating };
       }) as Book[];
-      setAllBooks(booksData);
+      
+      // Sort by processedDate descending (newest first)
+      const sortedBooks = booksData.sort((a, b) => b.processedDate.getTime() - a.processedDate.getTime());
+      
+      setAllBooks(sortedBooks);
       setLoading(false);
     });
     return () => unsubscribe();
@@ -119,10 +123,17 @@ export default function LibraryScreen() {
     try {
       const bookData: any = { title, author, status, rating, userId: user?.uid };
       if (editingBook) {
+        // If status changed to 'read' and it wasn't read before, set dateFinished
+        if (status === 'read' && editingBook.status !== 'read') {
+          bookData.dateFinished = Timestamp.now();
+        }
         await updateDoc(doc(db, 'books', editingBook.id), bookData);
         Toast.show({ type: 'success', text1: 'Updated' });
       } else {
         bookData.dateAdded = Timestamp.now();
+        if (status === 'read') {
+          bookData.dateFinished = Timestamp.now();
+        }
         await addDoc(collection(db, 'books'), bookData);
         Toast.show({ type: 'success', text1: 'Added' });
       }
