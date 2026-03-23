@@ -92,7 +92,13 @@ export default function LibraryScreen() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const booksData = snapshot.docs.map(doc => {
         const d = doc.data();
-        let date = d.dateFinished || d.dateAdded;
+        
+        // Pick the most relevant date based on status
+        let date = d.dateAdded; // default fallback
+        if (d.status === 'read' && d.dateFinished) date = d.dateFinished;
+        else if (d.status === 'reading' && d.dateStartedReading) date = d.dateStartedReading;
+        else if (d.dateFinished) date = d.dateFinished; // legacy fallback
+        
         let processedDate = new Date();
         if (date?.toDate) processedDate = date.toDate();
         else if (date?.seconds) processedDate = new Date(date.seconds * 1000);
@@ -127,12 +133,19 @@ export default function LibraryScreen() {
         if (status === 'read' && editingBook.status !== 'read') {
           bookData.dateFinished = Timestamp.now();
         }
+        // If status changed to 'reading' and it wasn't reading before, set dateStartedReading
+        if (status === 'reading' && editingBook.status !== 'reading') {
+          bookData.dateStartedReading = Timestamp.now();
+        }
         await updateDoc(doc(db, 'books', editingBook.id), bookData);
         Toast.show({ type: 'success', text1: 'Updated' });
       } else {
-        bookData.dateAdded = Timestamp.now();
+        const now = Timestamp.now();
+        bookData.dateAdded = now;
         if (status === 'read') {
-          bookData.dateFinished = Timestamp.now();
+          bookData.dateFinished = now;
+        } else if (status === 'reading') {
+          bookData.dateStartedReading = now;
         }
         await addDoc(collection(db, 'books'), bookData);
         Toast.show({ type: 'success', text1: 'Added' });
