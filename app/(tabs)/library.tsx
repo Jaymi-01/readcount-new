@@ -17,7 +17,12 @@ import Toast from 'react-native-toast-message';
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const COLUMN_WIDTH = (SCREEN_WIDTH - 48) / 2;
+const IS_TABLET = SCREEN_WIDTH >= 768;
+const NUM_COLUMNS = IS_TABLET ? 4 : 2;
+const GAP = 16;
+const TOTAL_GAP = GAP * (NUM_COLUMNS - 1);
+const HORIZONTAL_PADDING = IS_TABLET ? 40 : 24;
+const COLUMN_WIDTH = (SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - TOTAL_GAP) / NUM_COLUMNS;
 
 type BookStatus = 'reading' | 'toread' | 'read';
 
@@ -301,11 +306,12 @@ export default function LibraryScreen() {
             <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
           ) : (
             <FlatList 
+              key={`library-list-${NUM_COLUMNS}`}
               data={filteredBooks} 
               renderItem={renderBookItem} 
               keyExtractor={item => item.id} 
-              numColumns={2} 
-              contentContainerStyle={styles.listContent} 
+              numColumns={NUM_COLUMNS} 
+              contentContainerStyle={[styles.listContent, IS_TABLET && { paddingHorizontal: 24 }]} 
               columnWrapperStyle={styles.columnWrapper} 
               showsVerticalScrollIndicator={false} 
               style={{ flex: 1 }}
@@ -393,8 +399,8 @@ const styles = StyleSheet.create({
   filterTabs: { flexDirection: 'row', paddingHorizontal: 24, marginBottom: 16, gap: 20 },
   tab: { paddingVertical: 8 },
   tabText: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
-  listContent: { paddingHorizontal: 16, paddingBottom: 180 },
-  columnWrapper: { justifyContent: 'space-between', marginBottom: 16 },
+  listContent: { paddingHorizontal: HORIZONTAL_PADDING, paddingBottom: 180 },
+  columnWrapper: { justifyContent: 'flex-start', gap: GAP, marginBottom: 16 },
   bookWrapper: { width: COLUMN_WIDTH },
   coverContainer: { width: '100%', aspectRatio: 2/3 },
   bookCover: { width: '100%', height: '100%', borderRadius: 12, padding: 16, justifyContent: 'center', alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 4, height: 6 }, shadowOpacity: 0.4, shadowRadius: 8 },

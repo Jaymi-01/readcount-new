@@ -1,29 +1,41 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { Platform, View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Platform, View, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const IS_TABLET = SCREEN_WIDTH >= 768;
+
 const CustomTabBarButton = ({ children, onPress, colors, focused }) => (
-  <TouchableOpacity
-    style={[
-      styles.middleButtonContainer,
-      {
-        backgroundColor: colors.card,
-        borderColor: colors.border,
-      }
-    ]}
-    activeOpacity={0.8}
-    onPress={onPress}
-  >
-    <View style={[
-      styles.innerButton,
-      focused && { backgroundColor: colors.primary + '15' }
-    ]}>
-      {children}
-    </View>
-  </TouchableOpacity>
+  <View style={styles.tabButtonWrapper}>
+    <TouchableOpacity
+      style={[
+        styles.middleButtonContainer,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+          width: IS_TABLET ? 90 : 70,
+          height: IS_TABLET ? 90 : 70,
+          borderRadius: IS_TABLET ? 45 : 35,
+          top: IS_TABLET ? -35 : -32,
+          elevation: IS_TABLET ? 15 : 10,
+          shadowOpacity: IS_TABLET ? 0.3 : 0.2,
+        }
+      ]}
+      activeOpacity={0.8}
+      onPress={onPress}
+    >
+      <View style={[
+        styles.innerButton,
+        focused && { backgroundColor: colors.primary + '15' },
+        { borderRadius: IS_TABLET ? 45 : 35 }
+      ]}>
+        {children}
+      </View>
+    </TouchableOpacity>
+  </View>
 );
 
 export default function TabLayout() {
@@ -39,8 +51,8 @@ export default function TabLayout() {
           tabBarStyle: {
             backgroundColor: colors.card,
             borderTopWidth: 0,
-            height: Platform.OS === 'ios' ? 100 : 80,
-            paddingBottom: Platform.OS === 'ios' ? 35 : 15,
+            height: IS_TABLET ? 80 : (Platform.OS === 'ios' ? 100 : 80),
+            paddingBottom: IS_TABLET ? 10 : (Platform.OS === 'ios' ? 35 : 15),
             paddingTop: 12,
             elevation: 25,
             shadowColor: colors.textDark,
@@ -54,7 +66,7 @@ export default function TabLayout() {
           },
           tabBarLabelStyle: {
             fontWeight: '800',
-            fontSize: 10,
+            fontSize: IS_TABLET ? 12 : 10,
             textTransform: 'uppercase',
             letterSpacing: 0.5,
             marginTop: 4,
@@ -118,13 +130,13 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  tabButtonWrapper: {
+    flex: 1,
+    alignItems: 'center',
+  },
   middleButtonContainer: {
-    top: -35,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 70,
-    height: 70,
-    borderRadius: 35,
     borderWidth: 4,
     elevation: 10,
     shadowColor: '#000',
@@ -135,7 +147,6 @@ const styles = StyleSheet.create({
   innerButton: {
     width: '100%',
     height: '100%',
-    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
   }
