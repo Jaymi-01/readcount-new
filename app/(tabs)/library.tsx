@@ -190,7 +190,10 @@ export default function LibraryScreen() {
     const isExpanded = expandedBookId === item.id;
 
     return (
-      <Animated.View entering={FadeInDown.delay(index * 50).springify()} layout={Layout.springify()} style={styles.bookWrapper}>
+      <Animated.View 
+        entering={FadeInDown.delay(Math.min(index * 50, 400)).springify()} 
+        style={styles.bookWrapper}
+      >
         <View style={styles.coverContainer}>
           <View style={[styles.bookCover, { backgroundColor: coverColor }]}>
             <View style={styles.coverTexture} />
@@ -269,23 +272,25 @@ export default function LibraryScreen() {
           ))}
         </View>
 
-        {loading ? (
-          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
-        ) : (
-          <FlatList 
-            data={filteredBooks} 
-            renderItem={renderBookItem} 
-            keyExtractor={item => item.id} 
-            numColumns={2} 
-            contentContainerStyle={styles.listContent} 
-            columnWrapperStyle={styles.columnWrapper} 
-            showsVerticalScrollIndicator={false} 
-            style={{ flex: 1 }}
-            onScroll={closeExpandedMenu}
-            scrollEventThrottle={16}
-            ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="library-outline" size={64} color={colors.border} /><Text style={[styles.emptyText, { color: colors.textLight }]}>No books found</Text></View>} 
-          />
-        )}
+        <View style={{ flex: 1 }}>
+          {loading ? (
+            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
+          ) : (
+            <FlatList 
+              data={filteredBooks} 
+              renderItem={renderBookItem} 
+              keyExtractor={item => item.id} 
+              numColumns={2} 
+              contentContainerStyle={styles.listContent} 
+              columnWrapperStyle={styles.columnWrapper} 
+              showsVerticalScrollIndicator={false} 
+              style={{ flex: 1 }}
+              onScrollBeginDrag={closeExpandedMenu}
+              scrollEventThrottle={16}
+              ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="library-outline" size={64} color={colors.border} /><Text style={[styles.emptyText, { color: colors.textLight }]}>No books found</Text></View>} 
+            />
+          )}
+        </View>
 
         <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={() => { resetForm(); setModalVisible(true); }}><Ionicons name="add" size={32} color="white" /></TouchableOpacity>
       </View>
