@@ -1,10 +1,12 @@
 import { Stack } from "expo-router";
 import { ThemeProvider } from "./context/ThemeContext";
+import { LockProvider } from "./context/LockContext";
 import Toast from 'react-native-toast-message';
 import { useEffect } from "react";
 import { Platform } from "react-native";
 
 export default function RootLayout() {
+  // ... (setupNotifications effect remains the same)
   useEffect(() => {
     let isMounted = true;
 
@@ -70,8 +72,10 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-      <Toast />
+      <LockProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+        <Toast />
+      </LockProvider>
     </ThemeProvider>
   );
 }
