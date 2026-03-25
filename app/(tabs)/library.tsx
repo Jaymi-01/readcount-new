@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, 
-  ActivityIndicator, SafeAreaView, Platform, StatusBar, Dimensions, ScrollView, Alert
+  ActivityIndicator, SafeAreaView, Platform, StatusBar, Dimensions, ScrollView, Alert,
+  TouchableWithoutFeedback
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
@@ -224,35 +225,39 @@ export default function LibraryScreen() {
         style={styles.bookWrapper}
       >
         <View style={styles.coverContainer}>
-          <View style={[styles.bookCover, { backgroundColor: coverColor }]}>
-            <View style={styles.coverTexture} />
-            <Text style={styles.coverTitle} numberOfLines={3}>{item.title}</Text>
-            <View style={styles.coverDivider} />
-            <Text style={styles.coverAuthor} numberOfLines={1}>{item.author}</Text>
-            <View style={styles.coverFooter}>
-              <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
-              {item.rating && item.rating > 0 ? (
-                <View style={styles.miniRating}>
-                  <Ionicons name="star" size={10} color={colors.secondary} />
-                  <Text style={styles.miniRatingText}>{item.rating}</Text>
-                </View>
-              ) : null}
-            </View>
-
-            {isExpanded && (
-              <View style={[styles.inlineMenu, { backgroundColor: colors.card }]}>
-                <TouchableOpacity style={styles.inlineAction} onPress={() => { setExpandedBookId(null); openEditModal(item); }}>
-                  <Ionicons name="pencil" size={16} color={colors.primary} />
-                  <Text style={[styles.inlineActionText, { color: colors.textDark }]}>EDIT</Text>
-                </TouchableOpacity>
-                <View style={[styles.inlineDivider, { backgroundColor: colors.border }]} />
-                <TouchableOpacity style={styles.inlineAction} onPress={() => { setExpandedBookId(null); confirmDelete(item.id); }}>
-                  <Ionicons name="trash" size={16} color={colors.danger} />
-                  <Text style={[styles.inlineActionText, { color: colors.danger }]}>DELETE</Text>
-                </TouchableOpacity>
+          <TouchableWithoutFeedback onPress={closeExpandedMenu}>
+            <View style={[styles.bookCover, { backgroundColor: coverColor }]}>
+              <View style={styles.coverTexture} />
+              <Text style={styles.coverTitle} numberOfLines={3}>{item.title}</Text>
+              <View style={styles.coverDivider} />
+              <Text style={styles.coverAuthor} numberOfLines={1}>{item.author}</Text>
+              <View style={styles.coverFooter}>
+                <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
+                {item.rating && item.rating > 0 ? (
+                  <View style={styles.miniRating}>
+                    <Ionicons name="star" size={10} color={colors.secondary} />
+                    <Text style={styles.miniRatingText}>{item.rating}</Text>
+                  </View>
+                ) : null}
               </View>
-            )}
-          </View>
+
+              {isExpanded && (
+                <TouchableWithoutFeedback onPress={(e) => {}}>
+                  <View style={[styles.inlineMenu, { backgroundColor: colors.card }]}>
+                    <TouchableOpacity style={styles.inlineAction} onPress={() => { setExpandedBookId(null); openEditModal(item); }}>
+                      <Ionicons name="pencil" size={16} color={colors.primary} />
+                      <Text style={[styles.inlineActionText, { color: colors.textDark }]}>EDIT</Text>
+                    </TouchableOpacity>
+                    <View style={[styles.inlineDivider, { backgroundColor: colors.border }]} />
+                    <TouchableOpacity style={styles.inlineAction} onPress={() => { setExpandedBookId(null); confirmDelete(item.id); }}>
+                      <Ionicons name="trash" size={16} color={colors.danger} />
+                      <Text style={[styles.inlineActionText, { color: colors.danger }]}>DELETE</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableWithoutFeedback>
+              )}
+            </View>
+          </TouchableWithoutFeedback>
           
           <TouchableOpacity 
             style={styles.coverActions} 
@@ -270,60 +275,62 @@ export default function LibraryScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       
-      <View style={{ flex: 1 }}>
-        <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.greeting, { color: colors.textLight }]}>Welcome back,</Text>
-            <Text style={[styles.username, { color: colors.textDark }]} numberOfLines={1}>{displayName}</Text>
-          </View>
-          <TouchableOpacity style={[styles.filterChip, { backgroundColor: colors.card, borderColor: selectedYear !== 'All' ? colors.primary : colors.border }]} onPress={() => setShowFilterModal(true)}>
-            <Ionicons name="options-outline" size={20} color={selectedYear !== 'All' ? colors.primary : colors.textDark} />
-            {selectedYear !== 'All' && (
-              <View style={styles.activeFilterLabel}>
-                <Text style={[styles.filterYearText, { color: colors.primary }]}>{selectedYear}</Text>
-                <TouchableOpacity onPress={() => setSelectedYear('All')}><Ionicons name="close-circle" size={16} color={colors.primary} /></TouchableOpacity>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.searchSection}>
-          <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Ionicons name="search" size={18} color={colors.textLight} /><TextInput placeholder="Search shelf..." placeholderTextColor={colors.textLight} style={[styles.searchInput, { color: colors.textDark }]} value={searchQuery} onChangeText={setSearchQuery} />
-          </View>
-        </View>
-
-        <View style={styles.filterTabs}>
-          {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
-            <TouchableOpacity key={s} onPress={() => setFilterStatus(s)} style={[styles.tab, filterStatus === s && { borderBottomColor: colors.primary, borderBottomWidth: 3 }]}>
-              <Text style={[styles.tabText, { color: filterStatus === s ? colors.textDark : colors.textLight }]}>{s === 'toread' ? 'TO READ' : s.toUpperCase()} ({getTabCount(s)})</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
+      <TouchableWithoutFeedback onPress={closeExpandedMenu} accessible={false}>
         <View style={{ flex: 1 }}>
-          {loading ? (
-            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
-          ) : (
-            <FlatList 
-              key={`library-list-${NUM_COLUMNS}`}
-              data={filteredBooks} 
-              renderItem={renderBookItem} 
-              keyExtractor={item => item.id} 
-              numColumns={NUM_COLUMNS} 
-              contentContainerStyle={[styles.listContent, IS_TABLET && { paddingHorizontal: 24 }]} 
-              columnWrapperStyle={styles.columnWrapper} 
-              showsVerticalScrollIndicator={false} 
-              style={{ flex: 1 }}
-              onScrollBeginDrag={closeExpandedMenu}
-              scrollEventThrottle={16}
-              ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="library-outline" size={64} color={colors.border} /><Text style={[styles.emptyText, { color: colors.textLight }]}>No books found</Text></View>} 
-            />
-          )}
-        </View>
+          <View style={styles.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.greeting, { color: colors.textLight }]}>Welcome back,</Text>
+              <Text style={[styles.username, { color: colors.textDark }]} numberOfLines={1}>{displayName}</Text>
+            </View>
+            <TouchableOpacity style={[styles.filterChip, { backgroundColor: colors.card, borderColor: selectedYear !== 'All' ? colors.primary : colors.border }]} onPress={() => setShowFilterModal(true)}>
+              <Ionicons name="options-outline" size={20} color={selectedYear !== 'All' ? colors.primary : colors.textDark} />
+              {selectedYear !== 'All' && (
+                <View style={styles.activeFilterLabel}>
+                  <Text style={[styles.filterYearText, { color: colors.primary }]}>{selectedYear}</Text>
+                  <TouchableOpacity onPress={() => setSelectedYear('All')}><Ionicons name="close-circle" size={16} color={colors.primary} /></TouchableOpacity>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
 
-        <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={() => { resetForm(); setModalVisible(true); }}><Ionicons name="add" size={32} color="white" /></TouchableOpacity>
-      </View>
+          <View style={styles.searchSection}>
+            <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="search" size={18} color={colors.textLight} /><TextInput placeholder="Search shelf..." placeholderTextColor={colors.textLight} style={[styles.searchInput, { color: colors.textDark }]} value={searchQuery} onChangeText={setSearchQuery} />
+            </View>
+          </View>
+
+          <View style={styles.filterTabs}>
+            {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
+              <TouchableOpacity key={s} onPress={() => setFilterStatus(s)} style={[styles.tab, filterStatus === s && { borderBottomColor: colors.primary, borderBottomWidth: 3 }]}>
+                <Text style={[styles.tabText, { color: filterStatus === s ? colors.textDark : colors.textLight }]}>{s === 'toread' ? 'TO READ' : s.toUpperCase()} ({getTabCount(s)})</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={{ flex: 1 }}>
+            {loading ? (
+              <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
+            ) : (
+              <FlatList 
+                key={`library-list-${NUM_COLUMNS}`}
+                data={filteredBooks} 
+                renderItem={renderBookItem} 
+                keyExtractor={item => item.id} 
+                numColumns={NUM_COLUMNS} 
+                contentContainerStyle={[styles.listContent, IS_TABLET && { paddingHorizontal: 24 }]} 
+                columnWrapperStyle={styles.columnWrapper} 
+                showsVerticalScrollIndicator={false} 
+                style={{ flex: 1 }}
+                onScrollBeginDrag={closeExpandedMenu}
+                scrollEventThrottle={16}
+                ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="library-outline" size={64} color={colors.border} /><Text style={[styles.emptyText, { color: colors.textLight }]}>No books found</Text></View>} 
+              />
+            )}
+          </View>
+
+          <TouchableOpacity style={[styles.fab, { backgroundColor: colors.primary }]} onPress={() => { resetForm(); setModalVisible(true); }}><Ionicons name="add" size={32} color="white" /></TouchableOpacity>
+        </View>
+      </TouchableWithoutFeedback>
 
       {/* FILTER MODAL */}
       <Modal visible={showFilterModal} animationType="slide" transparent>
