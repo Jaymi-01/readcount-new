@@ -162,16 +162,39 @@ export default function SettingsScreen() {
   if (loading) return <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}><ActivityIndicator size="large" color={colors.primary} /></View>;
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: colors.background }]} 
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.header}><Text style={[styles.headerTitle, { color: colors.textDark }]}>Settings</Text></View>
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.textLight }]}>PROFILE</Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TouchableOpacity style={styles.row} onPress={() => setShowNameModal(true)}><View><Text style={[styles.label, { color: colors.textDark }]}>Display Name</Text><Text style={[styles.value, { color: colors.textLight }]}>{username}</Text></View><Ionicons name="pencil" size={20} color={colors.primary} /></TouchableOpacity>
+          <TouchableOpacity style={styles.row} onPress={() => setShowNameModal(true)}>
+            <View style={styles.rowTextContainer}>
+              <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Display Name</Text>
+              <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>{username}</Text>
+            </View>
+            <Ionicons name="pencil" size={20} color={colors.primary} />
+          </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} onPress={() => { setNewGoal(readingGoal.toString()); setShowGoalModal(true); }}><View><Text style={[styles.label, { color: colors.textDark }]}>Yearly Goal</Text><Text style={[styles.value, { color: colors.textLight }]}>{readingGoal} books</Text></View><Ionicons name="trophy-outline" size={20} color={colors.primary} /></TouchableOpacity>
-          <View style={styles.divider} /><View style={styles.row}><View><Text style={[styles.label, { color: colors.textDark }]}>Email</Text><Text style={[styles.value, { color: colors.textLight }]}>{user?.email}</Text></View><Ionicons name="lock-closed-outline" size={20} color={colors.textLight} /></View>
+          <TouchableOpacity style={styles.row} onPress={() => { setNewGoal(readingGoal.toString()); setShowGoalModal(true); }}>
+            <View style={styles.rowTextContainer}>
+              <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Yearly Goal</Text>
+              <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>{readingGoal} books</Text>
+            </View>
+            <Ionicons name="trophy-outline" size={20} color={colors.primary} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <View style={styles.rowTextContainer}>
+              <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Email</Text>
+              <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>{user?.email}</Text>
+            </View>
+            <Ionicons name="lock-closed-outline" size={20} color={colors.textLight} />
+          </View>
         </View>
       </View>
 
@@ -179,16 +202,21 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { color: colors.textLight }]}>PREFERENCES</Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity style={styles.row} onPress={toggleTheme}>
-            <View>
-              <Text style={[styles.label, { color: colors.textDark }]}>Theme</Text>
-              <Text style={[styles.value, { color: colors.textLight }]}>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</Text>
+            <View style={styles.rowTextContainer}>
+              <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Theme</Text>
+              <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</Text>
             </View>
             <View style={[styles.themeIconBtn, { backgroundColor: colors.primary + '15' }]}>
               <Ionicons name={theme === 'dark' ? "moon" : "sunny"} size={20} color={colors.primary} />
             </View>
           </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} onPress={() => setShowReportModal(true)}><Text style={[styles.label, { color: colors.textDark }]}>Report an Issue</Text><Ionicons name="bug-outline" size={20} color={colors.textLight} /></TouchableOpacity>
+          <TouchableOpacity style={styles.row} onPress={() => setShowReportModal(true)}>
+            <View style={styles.rowTextContainer}>
+              <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Report an Issue</Text>
+            </View>
+            <Ionicons name="bug-outline" size={20} color={colors.textLight} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -196,9 +224,9 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { color: colors.textLight }]}>SECURITY</Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.row}>
-            <View>
-              <Text style={[styles.label, { color: colors.textDark }]}>App Lock</Text>
-              <Text style={[styles.value, { color: colors.textLight }]}>{hasPin ? 'Enabled' : 'Disabled'}</Text>
+            <View style={styles.rowTextContainer}>
+              <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>App Lock</Text>
+              <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>{hasPin ? 'Enabled' : 'Disabled'}</Text>
             </View>
             <Switch
               value={hasPin}
@@ -211,17 +239,17 @@ export default function SettingsScreen() {
             <>
               <View style={styles.divider} />
               <TouchableOpacity style={styles.row} onPress={() => { setNewPin(''); setConfirmPin(''); setPinStep(1); setShowPinModal(true); }}>
-                <View>
-                  <Text style={[styles.label, { color: colors.textDark }]}>Change PIN</Text>
-                  <Text style={[styles.value, { color: colors.textLight }]}>Update your 4-digit PIN</Text>
+                <View style={styles.rowTextContainer}>
+                  <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Change PIN</Text>
+                  <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>Update your 4-digit PIN</Text>
                 </View>
                 <Ionicons name="keypad-outline" size={20} color={colors.primary} />
               </TouchableOpacity>
               <View style={styles.divider} />
               <TouchableOpacity style={styles.row} onPress={() => setShowTimeoutModal(true)}>
-                <View>
-                  <Text style={[styles.label, { color: colors.textDark }]}>Lock Timeout</Text>
-                  <Text style={[styles.value, { color: colors.textLight }]}>
+                <View style={styles.rowTextContainer}>
+                  <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Lock Timeout</Text>
+                  <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>
                     {timeouts.find(t => t.value === pinTimeout)?.label || `${pinTimeout} minutes`}
                   </Text>
                 </View>
@@ -235,8 +263,19 @@ export default function SettingsScreen() {
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.textLight }]}>ACCOUNT</Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <TouchableOpacity style={styles.row} onPress={handleLogout}><Text style={[styles.label, { color: colors.textDark }]}>Log Out</Text><Ionicons name="log-out-outline" size={22} color={colors.textDark} /></TouchableOpacity>
-          <View style={styles.divider} /><TouchableOpacity style={styles.row} onPress={() => setShowDeleteModal(true)}><Text style={[styles.label, { color: colors.danger }]}>Delete Account</Text><Ionicons name="trash-outline" size={22} color={colors.danger} /></TouchableOpacity>
+          <TouchableOpacity style={styles.row} onPress={handleLogout}>
+            <View style={styles.rowTextContainer}>
+              <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Log Out</Text>
+            </View>
+            <Ionicons name="log-out-outline" size={22} color={colors.textDark} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} onPress={() => setShowDeleteModal(true)}>
+            <View style={styles.rowTextContainer}>
+              <Text style={[styles.label, { color: colors.danger }]} numberOfLines={1}>Delete Account</Text>
+            </View>
+            <Ionicons name="trash-outline" size={22} color={colors.danger} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -307,7 +346,7 @@ export default function SettingsScreen() {
                   ]}
                   onPress={() => { setPinTimeout(t.value); setShowTimeoutModal(false); }}
                 >
-                  <Text style={[styles.timeoutLabel, { color: colors.textDark }, pinTimeout === t.value && { color: colors.primary, fontWeight: 'bold' }]}>
+                  <Text style={[styles.timeoutLabel, { color: colors.textDark }, pinTimeout === t.value && { color: colors.primary, fontWeight: 'bold' }]} numberOfLines={1}>
                     {t.label}
                   </Text>
                   {pinTimeout === t.value && <Ionicons name="checkmark" size={20} color={colors.primary} />}
@@ -338,13 +377,15 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingBottom: 180 },
+  container: { flex: 1 },
+  scrollContent: { paddingBottom: 120 },
   header: { padding: 24, paddingTop: Platform.OS === 'android' ? 60 : 40 },
   headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
   section: { marginBottom: 32, paddingHorizontal: 20 },
   sectionTitle: { fontSize: 12, fontWeight: '900', letterSpacing: 1.5, marginBottom: 12, marginLeft: 8, opacity: 0.5 },
   card: { borderRadius: 24, borderWidth: 1, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, minHeight: 64 },
+  rowTextContainer: { flex: 1, marginRight: 16 },
   label: { fontSize: 16, fontWeight: '700' },
   value: { fontSize: 14, marginTop: 2, fontWeight: '500' },
   divider: { height: 1, backgroundColor: 'rgba(0,0,0,0.05)', marginLeft: 20 },

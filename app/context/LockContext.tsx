@@ -303,19 +303,23 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
   },
   lockHeader: {
     alignItems: 'center',
     marginBottom: 40,
+    width: '100%',
   },
   lockTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     marginTop: 16,
+    textAlign: 'center',
   },
   lockSubtitle: {
     fontSize: 16,
     marginTop: 8,
+    textAlign: 'center',
   },
   dotsContainer: {
     flexDirection: 'row',
