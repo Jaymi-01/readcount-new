@@ -204,7 +204,8 @@ export default function LibraryScreen() {
   const getTabCount = (s: BookStatus) => {
     return allBooks.filter(b => {
       const matchesYear = selectedYear === 'All' || b.processedDate.getFullYear().toString() === selectedYear;
-      return b.status === s && matchesYear;
+      const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || b.author.toLowerCase().includes(searchQuery.toLowerCase());
+      return b.status === s && matchesYear && matchesSearch;
     }).length;
   };
 
@@ -295,7 +296,19 @@ export default function LibraryScreen() {
 
           <View style={styles.searchSection}>
             <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Ionicons name="search" size={18} color={colors.textLight} /><TextInput placeholder="Search shelf..." placeholderTextColor={colors.textLight} style={[styles.searchInput, { color: colors.textDark }]} value={searchQuery} onChangeText={setSearchQuery} />
+              <Ionicons name="search" size={18} color={colors.textLight} />
+              <TextInput 
+                placeholder="Search shelf..." 
+                placeholderTextColor={colors.textLight} 
+                style={[styles.searchInput, { color: colors.textDark }]} 
+                value={searchQuery} 
+                onChangeText={setSearchQuery} 
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={18} color={colors.textLight} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
