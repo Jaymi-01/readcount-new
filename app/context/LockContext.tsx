@@ -1,14 +1,14 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { AppState, AppStateStatus, View, StyleSheet, Text, TouchableOpacity, SafeAreaView, Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import { useTheme } from './ThemeContext';
+import * as SecureStore from 'expo-secure-store';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { AppState, AppStateStatus, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, darkColors } from '../../constants/colors';
 import { auth, db } from '../../firebaseConfig';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { useTheme } from './ThemeContext';
 
 const SECURE_STORE_KEY = 'app_passlock_pin';
 const ASYNC_STORAGE_TIMEOUT_KEY = 'app_passlock_timeout';
@@ -262,7 +262,7 @@ const LockScreen: React.FC<{ onUnlock: (pin: string) => Promise<boolean>, colors
       <View style={styles.lockHeader}>
         <Ionicons name="lock-closed" size={48} color={colors.primary} />
         <Text style={[styles.lockTitle, { color: colors.textDark }]}>App Locked</Text>
-        <Text style={[styles.lockSubtitle, { color: colors.textLight }]}>Enter PIN to continue</Text>
+        <Text style={[styles.lockSubtitle, { color: colors.textLight }]}>Enter PIN</Text>
       </View>
 
       <View style={styles.dotsContainer}>
