@@ -3,10 +3,65 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { LockProvider } from "./context/LockContext";
 import Toast from 'react-native-toast-message';
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { Platform, AppState } from "react-native";
+import * as Updates from 'expo-updates';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function RootLayout() {
-  // ... (setupNotifications effect remains the same)
+  const { currentlyRunning } = Updates.useUpdates();
+
+  // Check if we just updated on launch
+  useEffect(() => {
+    const checkUpdateStatus = async () => {
+      if (__DEV__) return;
+
+      try {
+        const lastUpdateId = await AsyncStorage.getItem('last_notified_update_id');
+        const currentUpdateId = currentlyRunning.updateId;
+
+        // If we have a currentUpdateId and it's different from the last one we notified about
+        if (currentUpdateId && lastUpdateId && currentUpdateId !== lastUpdateId) {
+          // Get the message from the manifest (this is what you type in 'eas update --message "..."')
+          const manifest: any = currentlyRunning.manifest;
+          const updateMessage = manifest?.metadata?.message || "New improvements and bug fixes!";
+
+          Toast.show({
+            type: 'success',
+            text1: '🚀 App Updated!',
+            text2: updateMessage,
+            visibilityTime: 5000,
+          });
+        }
+
+        // Always save the current ID so we don't notify again
+        if (currentUpdateId) {
+          await AsyncStorage.setItem('last_notified_update_id', currentUpdateId);
+        }
+      } catch (e) {
+        console.error("Error checking update status:", e);
+      }
+    };
+
+    checkUpdateStatus();
+  }, [currentlyRunning.updateId]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        if (!__DEV__) {
+          Updates.checkForUpdateAsync().then((result) => {
+            if (result.isAvailable) {
+              // This downloads the update in the background
+              Updates.fetchUpdateAsync();
+            }
+          }).catch(err => console.error("Update check error:", err));
+        }
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // ... (rest of setupNotifications effect remains the same)
   useEffect(() => {
     let isMounted = true;
 
