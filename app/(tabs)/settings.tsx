@@ -6,8 +6,9 @@ import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc, updateDoc, deleteDoc, Timestamp, addDoc, collection } from 'firebase/firestore';
 import { updateProfile, deleteUser, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { COLORS, darkColors } from '../../constants/colors';
-import { useTheme } from '../context/ThemeContext';
-import { useLock } from '../context/LockContext';
+import { DoodleBackground } from '../../components/DoodleBackground';
+import { useTheme } from '../../context/ThemeContext';
+import { useLock } from '../../context/LockContext';
 import Toast from 'react-native-toast-message';
 import * as Haptics from 'expo-haptics';
 
@@ -159,14 +160,16 @@ export default function SettingsScreen() {
     { label: '1 Hour', value: 60 },
   ];
 
-  if (loading) return <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}><ActivityIndicator size="large" color={colors.primary} /></View>;
+  if (loading) return <View style={[styles.container, { backgroundColor: 'transparent', justifyContent: 'center' }]}><ActivityIndicator size="large" color={colors.primary} /></View>;
 
   return (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: colors.background }]} 
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <DoodleBackground colors={colors} />
+      <ScrollView 
+        style={[styles.container, { backgroundColor: 'transparent' }]} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.header}><Text style={[styles.headerTitle, { color: colors.textDark }]}>Settings</Text></View>
 
       <View style={styles.section}>
@@ -294,8 +297,8 @@ export default function SettingsScreen() {
 
       {/* CENTERED MODALS */}
       {[
-        { visible: showNameModal, title: 'Change Name', content: <TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="New Name" value={newUsername} onChangeText={setNewUsername} />, onSave: handleUpdateUsername, onClose: () => setShowNameModal(false) },
-        { visible: showGoalModal, title: 'Set Goal', content: <TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border, backgroundColor: colors.background }]} placeholder="e.g. 24" value={newGoal} onChangeText={setNewGoal} keyboardType="numeric" />, onSave: handleUpdateGoal, onClose: () => setShowGoalModal(false) }
+        { visible: showNameModal, title: 'Change Name', content: <TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border, backgroundColor: 'transparent' }]} placeholder="New Name" value={newUsername} onChangeText={setNewUsername} />, onSave: handleUpdateUsername, onClose: () => setShowNameModal(false) },
+        { visible: showGoalModal, title: 'Set Goal', content: <TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border, backgroundColor: 'transparent' }]} placeholder="e.g. 24" value={newGoal} onChangeText={setNewGoal} keyboardType="numeric" />, onSave: handleUpdateGoal, onClose: () => setShowGoalModal(false) }
       ].map((m, i) => (
         <Modal key={i} visible={m.visible} transparent animationType="fade">
           <View style={styles.modalOverlay}><View style={[styles.modalContent, { backgroundColor: colors.card }]}><View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.textDark }]}>{m.title}</Text><TouchableOpacity onPress={m.onClose}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View>{m.content}<TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={m.onSave}>{modalLoading ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>Save Changes</Text>}</TouchableOpacity></View></View>
@@ -375,7 +378,7 @@ export default function SettingsScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.textDark }]}>Report Issue</Text><TouchableOpacity onPress={() => setShowReportModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View>
             <View style={styles.typeRow}>{(['Bug', 'Feature', 'Other'] as const).map(t => (<TouchableOpacity key={t} style={[styles.typeBtn, { backgroundColor: reportType === t ? colors.primary : colors.background, borderColor: colors.border }]} onPress={() => setReportType(t)}><Text style={[styles.typeBtnText, { color: reportType === t ? 'white' : colors.textLight }]}>{t}</Text></TouchableOpacity>))}</View>
-            <TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border, backgroundColor: colors.background, height: 100, textAlignVertical: 'top' }]} placeholder="Details..." value={reportDesc} onChangeText={setReportDesc} multiline />
+            <TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border, backgroundColor: 'transparent', height: 100, textAlignVertical: 'top' }]} placeholder="Details..." value={reportDesc} onChangeText={setReportDesc} multiline />
             <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSendReport}>{modalLoading ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>Send Report</Text>}</TouchableOpacity>
           </View>
         </View>
@@ -386,6 +389,7 @@ export default function SettingsScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}><View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.danger }]}>Delete Account?</Text><TouchableOpacity onPress={() => setShowDeleteModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View><Text style={{ color: colors.textLight, textAlign: 'center', marginBottom: 24 }}>This is permanent. All library data will be lost forever.</Text><View style={{ flexDirection: 'row', gap: 12, width: '100%' }}><TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]} onPress={() => setShowDeleteModal(false)}><Text style={{ color: colors.textDark, fontWeight: 'bold' }}>Cancel</Text></TouchableOpacity><TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: colors.danger }]} onPress={() => {}}><Text style={{ color: 'white', fontWeight: 'bold' }}>Delete</Text></TouchableOpacity></View></View></View>
       </Modal>
     </ScrollView>
+    </View>
   );
 }
 
