@@ -7,17 +7,18 @@ import {
   FlatList, 
   TouchableOpacity, 
   Image,
-  SafeAreaView,
   ActivityIndicator,
   RefreshControl,
   Alert,
   Platform,
   StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, darkColors } from '../../constants/colors';
-import { useTheme } from '../context/ThemeContext';
+import { DoodleBackground } from '../../components/DoodleBackground';
+import { useTheme } from '../../context/ThemeContext';
 import { collection, onSnapshot, query, where, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
@@ -210,6 +211,7 @@ export default function DMScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <DoodleBackground colors={colors} />
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.textDark }]}>Messages</Text>
