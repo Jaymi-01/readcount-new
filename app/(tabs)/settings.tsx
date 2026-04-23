@@ -15,7 +15,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const colors = theme === 'dark' ? darkColors : COLORS;
-  const { hasPin, setPin, removePin, pinTimeout, setPinTimeout } = useLock();
+  const { hasPin, setPin, removePin, pinTimeout, setPinTimeout, biometricEnabled, setBiometricEnabled } = useLock();
   const [user, setUser] = useState<User | null>(auth.currentUser);
 
   const [username, setUsername] = useState('');
@@ -237,6 +237,19 @@ export default function SettingsScreen() {
           </View>
           {hasPin && (
             <>
+              <View style={styles.divider} />
+              <View style={styles.row}>
+                <View style={styles.rowTextContainer}>
+                  <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Face ID / Biometric</Text>
+                  <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>{biometricEnabled ? 'Enabled' : 'Disabled'}</Text>
+                </View>
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={setBiometricEnabled}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={Platform.OS === 'ios' ? '#fff' : biometricEnabled ? colors.primary : '#f4f3f4'}
+                />
+              </View>
               <View style={styles.divider} />
               <TouchableOpacity style={styles.row} onPress={() => { setNewPin(''); setConfirmPin(''); setPinStep(1); setShowPinModal(true); }}>
                 <View style={styles.rowTextContainer}>
