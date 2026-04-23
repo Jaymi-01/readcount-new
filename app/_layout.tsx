@@ -1,12 +1,13 @@
 import { Stack } from "expo-router";
-import { ThemeProvider } from "./context/ThemeContext";
-import { LockProvider } from "./context/LockContext";
+import { ThemeProvider } from "../context/ThemeContext";
+import { LockProvider } from "../context/LockContext";
 import Toast from 'react-native-toast-message';
 import { useEffect } from "react";
 import { Platform, AppState } from "react-native";
 import * as Updates from 'expo-updates';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function RootLayout() {
   const { currentlyRunning } = Updates.useUpdates();
@@ -134,11 +135,15 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <ThemeProvider>
-      <LockProvider>
-        <Stack screenOptions={{ headerShown: false }} />
-        <Toast />
-      </LockProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <LockProvider>
+          <Stack screenOptions={{ 
+            headerShown: false,
+          }} />
+          <Toast />
+        </LockProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
