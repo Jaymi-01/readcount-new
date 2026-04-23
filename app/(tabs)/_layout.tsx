@@ -3,12 +3,12 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform, View, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { COLORS, darkColors } from '../../constants/colors';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const IS_TABLET = SCREEN_WIDTH >= 768;
 
-const CustomTabBarButton = ({ children, onPress, colors, focused }) => (
+const CustomTabBarButton = ({ children, onPress, colors, focused }: { children: any, onPress?: any, colors: any, focused?: boolean }) => (
   <View style={styles.tabButtonWrapper}>
     <TouchableOpacity
       style={[
@@ -43,7 +43,7 @@ export default function TabLayout() {
   const colors = theme === 'dark' ? darkColors : COLORS;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: colors.primary,
