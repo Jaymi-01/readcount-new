@@ -6,7 +6,8 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput
 import Toast from 'react-native-toast-message';
 import { COLORS, darkColors } from '../constants/colors';
 import { auth, db } from '../firebaseConfig';
-import { useTheme } from './context/ThemeContext';
+import { DoodleBackground } from '../components/DoodleBackground';
+import { useTheme } from '../context/ThemeContext';
 
 type AuthMode = 'login' | 'signup' | 'forgot';
 
@@ -386,6 +387,7 @@ export default function AuthScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.container, { backgroundColor: colors.background }]}
     >
+      <DoodleBackground colors={colors} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {renderContent()}
       </ScrollView>
