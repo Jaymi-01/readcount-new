@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, View, Text, TextInput, FlatList, TouchableOpacity, 
-  KeyboardAvoidingView, Platform, SafeAreaView, ActivityIndicator, Modal, StatusBar 
+  KeyboardAvoidingView, Platform, ActivityIndicator, Modal, StatusBar 
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, darkColors } from '../../constants/colors';
-import { useTheme } from '../context/ThemeContext';
+import { DoodleBackground } from '../../components/DoodleBackground';
+import { useTheme } from '../../context/ThemeContext';
 import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, doc, setDoc, increment, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebaseConfig';
 import Toast from 'react-native-toast-message';
@@ -104,6 +106,7 @@ export default function ChatScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <DoodleBackground colors={colors} />
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       <Stack.Screen options={{ 
         headerShown: true,
@@ -139,7 +142,7 @@ export default function ChatScreen() {
       >
         <View style={[styles.inputArea, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
           <TextInput
-            style={[styles.input, { backgroundColor: colors.background, color: colors.textDark, borderColor: colors.border }]}
+            style={[styles.input, { backgroundColor: 'transparent', color: colors.textDark, borderColor: colors.border }]}
             placeholder="Type a message..."
             placeholderTextColor={colors.textLight}
             value={inputText}
@@ -167,7 +170,7 @@ export default function ChatScreen() {
             </View>
             <Text style={styles.inputLabel}>Reason for report</Text>
             <TextInput
-              style={[styles.modalInput, { color: colors.textDark, borderColor: colors.border, backgroundColor: colors.background }]}
+              style={[styles.modalInput, { color: colors.textDark, borderColor: colors.border, backgroundColor: 'transparent' }]}
               placeholder="Tell us what's wrong..."
               placeholderTextColor={colors.textLight}
               value={reportReason}
