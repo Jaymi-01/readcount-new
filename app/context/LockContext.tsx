@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import * as SecureStore from 'expo-secure-store';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
@@ -13,16 +14,20 @@ import { useTheme } from './ThemeContext';
 const SECURE_STORE_KEY = 'app_passlock_pin';
 const ASYNC_STORAGE_TIMEOUT_KEY = 'app_passlock_timeout';
 const ASYNC_STORAGE_LAST_ACTIVE_KEY = 'app_passlock_last_active';
+const ASYNC_STORAGE_BIOMETRIC_KEY = 'app_passlock_biometric_enabled';
 const FALLBACK_PIN_KEY = 'app_passlock_pin_fallback';
 
 type LockContextType = {
   isLocked: boolean;
   hasPin: boolean;
   pinTimeout: number; 
+  biometricEnabled: boolean;
   setPin: (pin: string) => Promise<void>;
   removePin: () => Promise<void>;
   setPinTimeout: (minutes: number) => Promise<void>;
+  setBiometricEnabled: (enabled: boolean) => Promise<void>;
   unlock: (pin: string) => Promise<boolean>;
+  authenticateBiometric: () => Promise<void>;
 };
 
 const LockContext = createContext<LockContextType | undefined>(undefined);
@@ -35,17 +40,6 @@ export const useLock = () => {
   return context;
 };
 
-// Simple hash function for basic cloud obfuscation
-const hashPin = (pin: string) => {
-  let hash = 0;
-  for (let i = 0; i < pin.length; i++) {
-    const char = pin.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash.toString(16);
-};
-
 export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { theme } = useTheme();
   const colors = theme === 'dark' ? darkColors : COLORS;
@@ -53,6 +47,7 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLocked, setIsLocked] = useState(false);
   const [hasPin, setHasPin] = useState(false);
   const [pinTimeout, setPinTimeoutState] = useState(0); 
+  const [biometricEnabled, setBiometricEnabledState] = useState(false);
   const [appState, setAppState] = useState(AppState.currentState);
   const [user, setUser] = useState<User | null>(null);
 
@@ -95,18 +90,18 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const cloudPin = data.appLockPin;
         const localPin = await getStoredPin();
         
-        // If cloud has a PIN but local doesn't, sync down
         if (cloudPin && !localPin) {
-          // Note: Since we hash for cloud, we can't perfectly "restore" the original PIN 
-          // if it was only in the cloud unless we store it raw. 
-          // For true sync, we'll store the raw PIN encrypted or just raw since it's a 4 digit code.
-          // Let's store raw PIN for best UX in syncing, as Firestore is private per-user.
           await savePinLocally(cloudPin);
           setHasPin(true);
           setIsLocked(true);
         } else if (!cloudPin && localPin) {
-          // Local exists but cloud doesn't, sync up
           await updateDoc(doc(db, 'users', userId), { appLockPin: localPin });
+        }
+
+        // Sync biometric preference
+        if (data.biometricEnabled !== undefined) {
+          setBiometricEnabledState(data.biometricEnabled);
+          await AsyncStorage.setItem(ASYNC_STORAGE_BIOMETRIC_KEY, data.biometricEnabled.toString());
         }
       }
     } catch (e) {
@@ -140,6 +135,10 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const timeout = await AsyncStorage.getItem(ASYNC_STORAGE_TIMEOUT_KEY);
     if (timeout) {
       setPinTimeoutState(parseInt(timeout));
+    }
+    const bioEnabled = await AsyncStorage.getItem(ASYNC_STORAGE_BIOMETRIC_KEY);
+    if (bioEnabled !== null) {
+      setBiometricEnabledState(bioEnabled === 'true');
     }
   }, []);
 
@@ -189,8 +188,10 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const removePin = async () => {
     await deletePinLocally();
     if (user) {
-      await updateDoc(doc(db, 'users', user.uid), { appLockPin: null });
+      await updateDoc(doc(db, 'users', user.uid), { appLockPin: null, biometricEnabled: false });
     }
+    setBiometricEnabledState(false);
+    await AsyncStorage.removeItem(ASYNC_STORAGE_BIOMETRIC_KEY);
     setHasPin(false);
     setIsLocked(false);
   };
@@ -203,6 +204,14 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const setBiometricEnabled = async (enabled: boolean) => {
+    setBiometricEnabledState(enabled);
+    await AsyncStorage.setItem(ASYNC_STORAGE_BIOMETRIC_KEY, enabled.toString());
+    if (user) {
+      await updateDoc(doc(db, 'users', user.uid), { biometricEnabled: enabled });
+    }
+  };
+
   const unlock = async (enteredPin: string) => {
     const storedPin = await getStoredPin();
     if (enteredPin === storedPin) {
@@ -212,17 +221,61 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
+  const authenticateBiometric = async () => {
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      
+      if (!hasHardware || !isEnrolled) return;
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Unlock Read Count',
+        fallbackLabel: 'Enter PIN',
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        setIsLocked(false);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (e) {
+      console.error('Biometric auth error:', e);
+    }
+  };
+
   return (
-    <LockContext.Provider value={{ isLocked, hasPin, pinTimeout, setPin, removePin, setPinTimeout, unlock }}>
+    <LockContext.Provider value={{ 
+      isLocked, hasPin, pinTimeout, biometricEnabled, 
+      setPin, removePin, setPinTimeout, setBiometricEnabled, 
+      unlock, authenticateBiometric 
+    }}>
       {children}
-      {isLocked && user && <LockScreen onUnlock={unlock} colors={colors} />}
+      {isLocked && user && (
+        <LockScreen 
+          onUnlock={unlock} 
+          colors={colors} 
+          biometricEnabled={biometricEnabled} 
+          onBiometricAuth={authenticateBiometric}
+        />
+      )}
     </LockContext.Provider>
   );
 };
 
-const LockScreen: React.FC<{ onUnlock: (pin: string) => Promise<boolean>, colors: any }> = ({ onUnlock, colors }) => {
+const LockScreen: React.FC<{ 
+  onUnlock: (pin: string) => Promise<boolean>, 
+  colors: any,
+  biometricEnabled: boolean,
+  onBiometricAuth: () => Promise<void>
+}> = ({ onUnlock, colors, biometricEnabled, onBiometricAuth }) => {
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (biometricEnabled) {
+      onBiometricAuth();
+    }
+  }, []);
 
   const handlePress = (num: string) => {
     if (pin.length < 4) {
@@ -262,7 +315,7 @@ const LockScreen: React.FC<{ onUnlock: (pin: string) => Promise<boolean>, colors
       <View style={styles.lockHeader}>
         <Ionicons name="lock-closed" size={48} color={colors.primary} />
         <Text style={[styles.lockTitle, { color: colors.textDark }]}>App Locked</Text>
-        <Text style={[styles.lockSubtitle, { color: colors.textLight }]}>Enter PIN</Text>
+        <Text style={[styles.lockSubtitle, { color: colors.textLight }]}>Enter PIN or use Biometrics</Text>
       </View>
 
       <View style={styles.dotsContainer}>
@@ -285,7 +338,15 @@ const LockScreen: React.FC<{ onUnlock: (pin: string) => Promise<boolean>, colors
             <Text style={[styles.keyText, { color: colors.textDark }]}>{num}</Text>
           </TouchableOpacity>
         ))}
-        <View style={styles.key} />
+        <TouchableOpacity 
+          style={styles.key} 
+          onPress={onBiometricAuth}
+          disabled={!biometricEnabled}
+        >
+          {biometricEnabled && (
+            <Ionicons name="finger-print" size={32} color={colors.primary} />
+          )}
+        </TouchableOpacity>
         <TouchableOpacity style={styles.key} onPress={() => handlePress('0')}>
           <Text style={[styles.keyText, { color: colors.textDark }]}>0</Text>
         </TouchableOpacity>
