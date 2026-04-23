@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { Platform, AppState } from "react-native";
 import * as Updates from 'expo-updates';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 
 export default function RootLayout() {
   const { currentlyRunning } = Updates.useUpdates();
@@ -68,6 +69,13 @@ export default function RootLayout() {
     const setupNotifications = async () => {
       try {
         if (Platform.OS === 'web') return;
+
+        // Skip setup on Android if running in Expo Go (SDK 53+ restriction)
+        const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+        if (Platform.OS === 'android' && isExpoGo) {
+          console.log('Skipping notification setup: expo-notifications is not supported on Android in Expo Go (SDK 53+).');
+          return;
+        }
 
         // Dynamically import to prevent side-effects on web/Node
         const Notifications = await import('expo-notifications');
