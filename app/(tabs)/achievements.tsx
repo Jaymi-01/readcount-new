@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, ScrollView, ActivityIndicator, SafeAreaView, Platform, StatusBar, TouchableOpacity, Dimensions, Modal } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Dimensions, Modal } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, onSnapshot, query, where, getDocs, doc, setDoc, getDoc, Timestamp, deleteDoc } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
-import { useTheme } from '../context/ThemeContext';
+import { DoodleBackground } from '../../components/DoodleBackground';
+import { useTheme } from '../../context/ThemeContext';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSequence } from 'react-native-reanimated';
 import Toast from 'react-native-toast-message';
@@ -326,10 +328,11 @@ export default function AchievementsScreen() {
 
   const openDetails = (ach: Achievement) => { setSelectedAch(ach); setShowModal(true); };
 
-  if (loading) return <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}><ActivityIndicator size="large" color={colors.primary} /></View>;
+  if (loading) return <View style={[styles.container, { backgroundColor: 'transparent', justifyContent: 'center' }]}><ActivityIndicator size="large" color={colors.primary} /></View>;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <DoodleBackground colors={colors} />
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.textDark }]}>Trophy Shelf</Text>
         <Text style={[styles.headerSubtitle, { color: colors.textLight }]}>
