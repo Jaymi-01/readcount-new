@@ -9,7 +9,6 @@ import { auth, db } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { useTheme } from '../context/ThemeContext';
 import Toast from 'react-native-toast-message';
-import { syncWidget } from '../../utils/widgetSync';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -165,32 +164,6 @@ export default function StatsScreen() {
       setBooksReadThisYear(count);
       setMonthlyStats(months.map((m, i) => ({ month: m, count: monthCounts[i] })));
       
-      // --- WIDGET SYNC (Wrapped in safety) ---
-      try {
-        const now = new Date();
-        let widgetBooksRead = 0;
-        let latestTitle = 'No books yet';
-        let latestDate = 0;
-        snapshot.forEach(doc => {
-          const d = doc.data();
-          let fDate: Date | null = null;
-          const rd = d.dateFinished || d.dateAdded;
-          if (rd?.toDate) fDate = rd.toDate();
-          else if (rd?.seconds) fDate = new Date(rd.seconds * 1000);
-          else fDate = new Date(rd);
-          if (fDate && fDate.getFullYear() === now.getFullYear()) {
-            widgetBooksRead++;
-            if (fDate.getTime() > latestDate) { latestDate = fDate.getTime(); latestTitle = d.title; }
-          }
-        });
-        
-        // Comment out for now to verify if this is the crash cause
-        // syncWidget({ booksRead: widgetBooksRead, goal: yearlyGoal, lastBook: latestTitle });
-      } catch (widgetError) {
-        console.log("Widget sync error (suppressed):", widgetError);
-      }
-      // -------------------
-
       if (yearlyGoal > 0 && count >= yearlyGoal && selectedYear === new Date().getFullYear()) {
         checkAndUnlockAchievement('the_finisher');
       }
