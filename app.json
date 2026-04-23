@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.jaymi.readcountnew"
+      "bundleIdentifier": "com.jaymi.readcountnew",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Allow Read Count to use Face ID to unlock your library."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -48,21 +51,7 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-secure-store",
-      [
-        "expo-widgets",
-        {
-          "widgets": [
-            {
-              "name": "ReadingProgress",
-              "src": "./widgets/index.tsx",
-              "description": "Shows your yearly reading progress",
-              "minWidth": "100dp",
-              "minHeight": "100dp"
-            }
-          ]
-        }
-      ]
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
