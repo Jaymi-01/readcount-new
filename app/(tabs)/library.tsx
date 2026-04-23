@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, 
-  ActivityIndicator, SafeAreaView, Platform, StatusBar, Dimensions, ScrollView, Alert,
+  ActivityIndicator, Platform, StatusBar, Dimensions, ScrollView, Alert,
   TouchableWithoutFeedback
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
@@ -13,9 +14,10 @@ import {
   doc, Timestamp, getDoc, setDoc, getDocs 
 } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 import Toast from 'react-native-toast-message';
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
+import { DoodleBackground } from '../../components/DoodleBackground';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const IS_TABLET = SCREEN_WIDTH >= 768;
@@ -274,6 +276,7 @@ export default function LibraryScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <DoodleBackground colors={colors} />
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       
       <TouchableWithoutFeedback onPress={closeExpandedMenu} accessible={false}>

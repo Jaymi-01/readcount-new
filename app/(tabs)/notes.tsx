@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, 
-  ActivityIndicator, SafeAreaView, Platform, StatusBar, Dimensions, ScrollView, KeyboardAvoidingView, Keyboard
+  ActivityIndicator, Platform, StatusBar, Dimensions, ScrollView, KeyboardAvoidingView, Keyboard
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
@@ -11,9 +12,10 @@ import {
   doc, Timestamp, orderBy 
 } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 import Toast from 'react-native-toast-message';
 import Animated, { FadeInDown, Layout, FadeIn, FadeOut } from 'react-native-reanimated';
+import { DoodleBackground } from '../../components/DoodleBackground';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -204,7 +206,7 @@ export default function NotesScreen() {
 
   if (editorVisible) {
     return (
-      <SafeAreaView style={[styles.editorContainer, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.editorContainer, { backgroundColor: 'transparent' }]}>
         <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
         <View style={styles.editorHeader}>
           <TouchableOpacity onPress={handleSaveNote} style={styles.backBtn}>
@@ -256,6 +258,7 @@ export default function NotesScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <DoodleBackground colors={colors} />
       <StatusBar barStyle={theme === 'dark' ? 'light-content' : 'dark-content'} />
       
       <View style={styles.header}>
