@@ -2,12 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { collection, doc, getDoc, onSnapshot, query, where, setDoc, Timestamp } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Modal, Platform, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { COLORS, darkColors } from '../../constants/colors';
 import { auth, db } from '../../firebaseConfig';
+import { DoodleBackground } from '../../components/DoodleBackground';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -200,7 +202,7 @@ export default function StatsScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center' }]}>
+      <View style={[styles.container, { backgroundColor: 'transparent', justifyContent: 'center' }]}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -210,6 +212,7 @@ export default function StatsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <DoodleBackground colors={colors} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: colors.textDark }]}>Reading Stats</Text>
