@@ -25,6 +25,20 @@ interface Achievement {
   total?: number;
 }
 
+interface Book {
+  id: string;
+  userId: string;
+  title: string;
+  author: string;
+  status: 'read' | 'reading' | 'toread';
+  dateAdded: any;
+  dateFinished?: any;
+  dateStartedReading?: any;
+  rating?: number;
+  review?: string;
+  processedDate: Date;
+}
+
 const CATEGORIES = [
   { id: 'basics', title: 'THE JOURNEY BEGINS' },
   { id: 'habits', title: 'DAILY RITUALS' },
@@ -142,14 +156,14 @@ export default function AchievementsScreen() {
     try {
       const qAll = query(collection(db, 'books'), where('userId', '==', user.uid));
       const allSnap = await getDocs(qAll);
-      const allBooks = allSnap.docs.map(doc => {
+      const allBooks: Book[] = allSnap.docs.map(doc => {
         const d = doc.data();
         let date = d.dateFinished || d.dateAdded;
         let processedDate = new Date();
         if (date?.toDate) processedDate = date.toDate();
         else if (date?.seconds) processedDate = new Date(date.seconds * 1000);
         else processedDate = new Date(date);
-        return { ...d, id: doc.id, processedDate };
+        return { ...d, id: doc.id, processedDate } as Book;
       }).sort((a, b) => a.processedDate.getTime() - b.processedDate.getTime());
 
       const readBooks = allBooks.filter(b => b.status === 'read');
@@ -266,7 +280,7 @@ export default function AchievementsScreen() {
     });
     const qBooks = query(collection(db, 'books'), where('userId', '==', user.uid));
     const unsubscribeBooks = onSnapshot(qBooks, (snapshot) => {
-      const allBooks = snapshot.docs.map(d => d.data());
+      const allBooks = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Book));
       const readBooks = allBooks.filter(b => b.status === 'read');
       const toReadCount = allBooks.filter(b => b.status === 'toread').length;
       const readingCount = allBooks.filter(b => b.status === 'reading').length;
