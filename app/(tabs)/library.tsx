@@ -55,6 +55,7 @@ export default function LibraryScreen() {
   const [displayName, setDisplayName] = useState('Reader');
   
   const [selectedYear, setSelectedYear] = useState('All');
+  const [selectedGenre, setSelectedGenre] = useState('All');
   const [showFilterModal, setShowFilterModal] = useState(false);
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -205,11 +206,14 @@ export default function LibraryScreen() {
 
   const availableYears = ['All', ...Object.keys(yearsWithCounts).sort((a,b) => parseInt(b) - parseInt(a))];
 
+  const uniqueGenres = ['All', ...Array.from(new Set(allBooks.map(b => b.genre).filter(Boolean))).sort()];
+
   const getTabCount = (s: BookStatus) => {
     return allBooks.filter(b => {
       const matchesYear = selectedYear === 'All' || b.processedDate.getFullYear().toString() === selectedYear;
+      const matchesGenre = selectedGenre === 'All' || b.genre === selectedGenre;
       const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || b.author.toLowerCase().includes(searchQuery.toLowerCase());
-      return b.status === s && matchesYear && matchesSearch;
+      return b.status === s && matchesYear && matchesGenre && matchesSearch;
     }).length;
   };
 
@@ -217,7 +221,8 @@ export default function LibraryScreen() {
     const matchesStatus = b.status === filterStatus;
     const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || b.author.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesYear = selectedYear === 'All' || b.processedDate.getFullYear().toString() === selectedYear;
-    return matchesStatus && matchesSearch && matchesYear;
+    const matchesGenre = selectedGenre === 'All' || b.genre === selectedGenre;
+    return matchesStatus && matchesSearch && matchesYear && matchesGenre;
   });
 
   const renderBookItem = ({ item, index }: { item: Book, index: number }) => {
@@ -293,12 +298,31 @@ export default function LibraryScreen() {
               <Text style={[styles.greeting, { color: colors.textLight }]}>Welcome back,</Text>
               <Text style={[styles.username, { color: colors.textDark }]} numberOfLines={1}>{displayName}</Text>
             </View>
-            <TouchableOpacity style={[styles.filterChip, { backgroundColor: colors.card, borderColor: selectedYear !== 'All' ? colors.primary : colors.border }]} onPress={() => setShowFilterModal(true)}>
-              <Ionicons name="options-outline" size={20} color={selectedYear !== 'All' ? colors.primary : colors.textDark} />
-              {selectedYear !== 'All' && (
+            <TouchableOpacity 
+              style={[
+                styles.filterChip, 
+                { 
+                  backgroundColor: colors.card, 
+                  borderColor: (selectedYear !== 'All' || selectedGenre !== 'All') ? colors.primary : colors.border 
+                }
+              ]} 
+              onPress={() => setShowFilterModal(true)}
+            >
+              <Ionicons name="options-outline" size={20} color={(selectedYear !== 'All' || selectedGenre !== 'All') ? colors.primary : colors.textDark} />
+              {(selectedYear !== 'All' || selectedGenre !== 'All') && (
                 <View style={styles.activeFilterLabel}>
-                  <Text style={[styles.filterYearText, { color: colors.primary }]}>{selectedYear}</Text>
-                  <TouchableOpacity onPress={() => setSelectedYear('All')}><Ionicons name="close-circle" size={16} color={colors.primary} /></TouchableOpacity>
+                  {selectedYear !== 'All' && (
+                    <View style={styles.filterTag}>
+                      <Text style={[styles.filterYearText, { color: colors.primary }]}>{selectedYear}</Text>
+                      <TouchableOpacity onPress={() => setSelectedYear('All')}><Ionicons name="close-circle" size={16} color={colors.primary} /></TouchableOpacity>
+                    </View>
+                  )}
+                  {selectedGenre !== 'All' && (
+                    <View style={[styles.filterTag, selectedYear !== 'All' && { marginLeft: 8 }]}>
+                      <Text style={[styles.filterYearText, { color: colors.primary }]}>{selectedGenre}</Text>
+                      <TouchableOpacity onPress={() => setSelectedGenre('All')}><Ionicons name="close-circle" size={16} color={colors.primary} /></TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               )}
             </TouchableOpacity>
@@ -359,13 +383,56 @@ export default function LibraryScreen() {
       <Modal visible={showFilterModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.textDark }]}>Filter by Year</Text><TouchableOpacity onPress={() => setShowFilterModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View>
-            <ScrollView style={{ width: '100%', maxHeight: 350 }}>
+            <View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.textDark }]}>Filters</Text><TouchableOpacity onPress={() => setShowFilterModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>Genre</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.genreScroll}>
+                {uniqueGenres.map(g => (
+                  <TouchableOpacity 
+                    key={g} 
+                    onPress={() => setSelectedGenre(g)} 
+                    style={[
+                      styles.genreOption, 
+                      { borderColor: colors.border },
+                      selectedGenre === g && { backgroundColor: colors.primary, borderColor: colors.primary }
+                    ]}
+                  >
+                    <Text style={[styles.genreOptionText, { color: selectedGenre === g ? 'white' : colors.textDark }]}>{g}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <Text style={styles.inputLabel}>Year</Text>
               {availableYears.map(year => (
-                <TouchableOpacity key={year} onPress={() => { setSelectedYear(year); setShowFilterModal(false); }} style={[styles.yearOption, selectedYear === year && { backgroundColor: colors.primaryLight }]}><Text style={[styles.yearOptionText, { color: colors.textDark }]}>{year === 'All' ? 'All Time' : year}</Text><Text style={[styles.yearOptionCount, { color: colors.textLight }]}>{year === 'All' ? allBooks.length : yearsWithCounts[year]} books</Text></TouchableOpacity>
+                <TouchableOpacity key={year} onPress={() => { setSelectedYear(year); }} style={[styles.yearOption, { borderColor: colors.border }, selectedYear === year && { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}>
+                  <Text style={[styles.yearOptionText, { color: colors.textDark }]}>{year === 'All' ? 'All Time' : year}</Text>
+                  <Text style={[styles.yearOptionCount, { color: colors.textLight }]}>
+                    {year === 'All' 
+                      ? allBooks.filter(b => selectedGenre === 'All' || b.genre === selectedGenre).length 
+                      : allBooks.filter(b => b.processedDate.getFullYear().toString() === year && (selectedGenre === 'All' || b.genre === selectedGenre)).length
+                    } books
+                  </Text>
+                </TouchableOpacity>
               ))}
             </ScrollView>
-            {selectedYear !== 'All' && <TouchableOpacity style={[styles.clearBtn, { borderColor: colors.danger }]} onPress={() => { setSelectedYear('All'); setShowFilterModal(false); }}><Ionicons name="trash-bin-outline" size={18} color={colors.danger} /><Text style={[styles.clearBtnText, { color: colors.danger }]}>Clear Year Filter</Text></TouchableOpacity>}
+
+            {(selectedYear !== 'All' || selectedGenre !== 'All') && (
+              <TouchableOpacity 
+                style={[styles.clearBtn, { borderColor: colors.danger }]} 
+                onPress={() => { setSelectedYear('All'); setSelectedGenre('All'); setShowFilterModal(false); }}
+              >
+                <Ionicons name="trash-bin-outline" size={18} color={colors.danger} />
+                <Text style={[styles.clearBtnText, { color: colors.danger }]}>Clear All Filters</Text>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity 
+              style={[styles.saveBtn, { backgroundColor: colors.primary, marginTop: 16 }]} 
+              onPress={() => setShowFilterModal(false)}
+            >
+              <Text style={styles.saveBtnText}>Apply Filters</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -421,8 +488,12 @@ const styles = StyleSheet.create({
   username: { fontSize: 24, fontWeight: '900' },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
   filterChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, gap: 8 },
-  activeFilterLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, borderLeftWidth: 1, borderLeftColor: 'rgba(0,0,0,0.1)', paddingLeft: 8 },
-  filterYearText: { fontSize: 14, fontWeight: 'bold' },
+  activeFilterLabel: { flexDirection: 'row', alignItems: 'center', gap: 0, borderLeftWidth: 1, borderLeftColor: 'rgba(0,0,0,0.1)', paddingLeft: 8 },
+  filterTag: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.05)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  filterYearText: { fontSize: 12, fontWeight: 'bold' },
+  genreScroll: { width: '100%', marginBottom: 8 },
+  genreOption: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, borderWidth: 1, marginRight: 8, height: 40, justifyContent: 'center' },
+  genreOptionText: { fontSize: 13, fontWeight: '800' },
   fab: { position: 'absolute', bottom: 100, right: 24, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, zIndex: 100 },
   searchSection: { paddingHorizontal: 24, marginBottom: 16 },
   searchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: 44, borderRadius: 12, borderWidth: 1 },
