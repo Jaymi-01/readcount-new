@@ -106,6 +106,7 @@ export default function StatsScreen() {
   const [showWrapped, setShowWrapped] = useState(false);
   const [topMonth, setTopMonth] = useState('');
   const [topAuthor, setTopAuthor] = useState('');
+  const [topGenre, setTopGenre] = useState('');
   const [personality, setPersonality] = useState({ title: '', icon: '', desc: '' });
 
   const progressValue = useSharedValue(0);
@@ -145,6 +146,7 @@ export default function StatsScreen() {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthCounts = new Array(12).fill(0);
       const authors: {[key: string]: number} = {};
+      const genres: {[key: string]: number} = {};
 
       snapshot.forEach((doc) => {
         const data = doc.data();
@@ -160,6 +162,10 @@ export default function StatsScreen() {
           count++;
           monthCounts[finishDate.getMonth()]++;
           if (data.author) authors[data.author] = (authors[data.author] || 0) + 1;
+          if (data.genre) {
+            const normalizedGenre = data.genre.charAt(0).toUpperCase() + data.genre.slice(1).toLowerCase();
+            genres[normalizedGenre] = (genres[normalizedGenre] || 0) + 1;
+          }
         }
       });
 
@@ -172,8 +178,12 @@ export default function StatsScreen() {
 
       const maxMonthIdx = monthCounts.indexOf(Math.max(...monthCounts));
       setTopMonth(count > 0 ? months[maxMonthIdx] : 'None');
+      
       const topAuthEntry = Object.entries(authors).sort((a,b) => b[1] - a[1])[0];
       setTopAuthor(topAuthEntry ? topAuthEntry[0] : 'None');
+
+      const topGenreEntry = Object.entries(genres).sort((a,b) => b[1] - a[1])[0];
+      setTopGenre(topGenreEntry ? topGenreEntry[0] : 'None');
 
       if (count >= 20) setPersonality({ title: 'The Speed Demon', icon: 'bicycle', desc: 'You tear through books like they are nothing!' });
       else if (topAuthEntry && topAuthEntry[1] >= 3) setPersonality({ title: 'The Loyal Fan', icon: 'heart', desc: `You really love ${topAuthEntry[0]}'s work!` });
@@ -277,6 +287,7 @@ export default function StatsScreen() {
             <View style={styles.wrappedRow}>
               <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Ionicons name="calendar" size={24} color={colors.secondary} /><Text style={styles.wrappedSmallLabel}>Top Month</Text><Text style={styles.wrappedSmallValue}>{topMonth}</Text></View>
               <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Ionicons name="person" size={24} color={colors.secondary} /><Text style={styles.wrappedSmallLabel}>Top Author</Text><Text style={styles.wrappedSmallValue} numberOfLines={1}>{topAuthor}</Text></View>
+              <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Ionicons name="book" size={24} color={colors.secondary} /><Text style={styles.wrappedSmallLabel}>Top Genre</Text><Text style={styles.wrappedSmallValue} numberOfLines={1}>{topGenre}</Text></View>
             </View>
             <View style={[styles.wrappedQuoteCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}><Text style={styles.wrappedQuote}>&quot;A reader lives a thousand lives before he dies.&quot;</Text><Text style={styles.wrappedQuoteAuthor}>— George R.R. Martin</Text></View>
             <Text style={styles.wrappedFooter}>#ReadCountWrapped</Text>
