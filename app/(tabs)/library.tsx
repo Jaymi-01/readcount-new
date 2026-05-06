@@ -27,6 +27,11 @@ const TOTAL_GAP = GAP * (NUM_COLUMNS - 1);
 const HORIZONTAL_PADDING = IS_TABLET ? 40 : 24;
 const COLUMN_WIDTH = (SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - TOTAL_GAP) / NUM_COLUMNS;
 
+const capitalize = (str: string) => {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+};
+
 type BookStatus = 'reading' | 'toread' | 'read';
 
 interface Book {
@@ -137,7 +142,14 @@ export default function LibraryScreen() {
       return;
     }
     try {
-      const bookData: any = { title, author, genre, status, rating, userId: user?.uid };
+      const bookData: any = { 
+        title, 
+        author, 
+        genre: genre?.trim().toUpperCase(), 
+        status, 
+        rating, 
+        userId: user?.uid 
+      };
       if (editingBook) {
         // If status changed to 'read' and it wasn't read before, set dateFinished
         if (status === 'read' && editingBook.status !== 'read') {
@@ -206,12 +218,12 @@ export default function LibraryScreen() {
 
   const availableYears = ['All', ...Object.keys(yearsWithCounts).sort((a,b) => parseInt(b) - parseInt(a))];
 
-  const uniqueGenres = ['All', ...Array.from(new Set(allBooks.map(b => b.genre).filter(Boolean))).sort()];
+  const uniqueGenres = ['All', ...Array.from(new Set(allBooks.map(b => capitalize(b.genre?.trim())))).filter(Boolean)].sort();
 
   const getTabCount = (s: BookStatus) => {
     return allBooks.filter(b => {
       const matchesYear = selectedYear === 'All' || b.processedDate.getFullYear().toString() === selectedYear;
-      const matchesGenre = selectedGenre === 'All' || b.genre === selectedGenre;
+      const matchesGenre = selectedGenre === 'All' || capitalize(b.genre?.trim()) === selectedGenre;
       const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || b.author.toLowerCase().includes(searchQuery.toLowerCase());
       return b.status === s && matchesYear && matchesGenre && matchesSearch;
     }).length;
@@ -221,7 +233,7 @@ export default function LibraryScreen() {
     const matchesStatus = b.status === filterStatus;
     const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || b.author.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesYear = selectedYear === 'All' || b.processedDate.getFullYear().toString() === selectedYear;
-    const matchesGenre = selectedGenre === 'All' || b.genre === selectedGenre;
+    const matchesGenre = selectedGenre === 'All' || capitalize(b.genre?.trim()) === selectedGenre;
     return matchesStatus && matchesSearch && matchesYear && matchesGenre;
   });
 
@@ -245,7 +257,7 @@ export default function LibraryScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
                   {item.genre ? (
-                    <Text style={styles.genreText} numberOfLines={1}>{item.genre.toUpperCase()}</Text>
+                    <Text style={styles.genreText} numberOfLines={1}>{capitalize(item.genre)}</Text>
                   ) : null}
                 </View>
                 {item.rating && item.rating > 0 ? (
@@ -445,7 +457,7 @@ export default function LibraryScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.inputLabel}>Title</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={title} onChangeText={setTitle} />
               <Text style={styles.inputLabel}>Author</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={author} onChangeText={setAuthor} />
-              <Text style={styles.inputLabel}>Genre</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={genre} onChangeText={setGenre} placeholder="e.g. Fantasy, Sci-Fi, Mystery" placeholderTextColor={colors.textLight} />
+              <Text style={styles.inputLabel}>Genre</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={genre} onChangeText={(text) => setGenre(text.toUpperCase())} placeholder="E.G. FANTASY, SCI-FI" placeholderTextColor={colors.textLight} autoCapitalize="characters" />
               <Text style={styles.inputLabel}>Status</Text>
               <View style={styles.statusRow}>
                 {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
