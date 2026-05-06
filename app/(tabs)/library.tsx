@@ -33,6 +33,7 @@ interface Book {
   id: string;
   title: string;
   author: string;
+  genre?: string;
   status: BookStatus;
   rating?: number;
   userId: string;
@@ -56,11 +57,11 @@ export default function LibraryScreen() {
   const [selectedYear, setSelectedYear] = useState('All');
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // Modal State (Add/Edit)
   const [modalVisible, setModalVisible] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
+  const [genre, setGenre] = useState('');
   const [status, setStatus] = useState<BookStatus>('reading');
   const [rating, setRating] = useState(0);
 
@@ -117,7 +118,7 @@ export default function LibraryScreen() {
         if (!migrateRating && d.review === 'good') migrateRating = 5;
         if (!migrateRating && d.review === 'bad') migrateRating = 1;
 
-        return { id: doc.id, ...d, processedDate, rating: migrateRating };
+        return { id: doc.id, ...d, processedDate, rating: migrateRating, genre: d.genre || '' };
       }) as Book[];
       
       // Sort by processedDate descending (newest first)
@@ -135,7 +136,7 @@ export default function LibraryScreen() {
       return;
     }
     try {
-      const bookData: any = { title, author, status, rating, userId: user?.uid };
+      const bookData: any = { title, author, genre, status, rating, userId: user?.uid };
       if (editingBook) {
         // If status changed to 'read' and it wasn't read before, set dateFinished
         if (status === 'read' && editingBook.status !== 'read') {
@@ -166,13 +167,14 @@ export default function LibraryScreen() {
   };
 
   const resetForm = () => {
-    setEditingBook(null); setTitle(''); setAuthor(''); setStatus(filterStatus); setRating(0);
+    setEditingBook(null); setTitle(''); setAuthor(''); setGenre(''); setStatus(filterStatus); setRating(0);
   };
 
   const openEditModal = (book: Book) => {
     setEditingBook(book); 
     setTitle(book.title); 
     setAuthor(book.author); 
+    setGenre(book.genre || '');
     setStatus(book.status); 
     setRating(book.rating || 0); 
     setModalVisible(true);
@@ -235,7 +237,12 @@ export default function LibraryScreen() {
               <View style={styles.coverDivider} />
               <Text style={styles.coverAuthor} numberOfLines={1}>{item.author}</Text>
               <View style={styles.coverFooter}>
-                <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
+                  {item.genre ? (
+                    <Text style={styles.genreText} numberOfLines={1}>{item.genre.toUpperCase()}</Text>
+                  ) : null}
+                </View>
                 {item.rating && item.rating > 0 ? (
                   <View style={styles.miniRating}>
                     <Ionicons name="star" size={10} color={colors.secondary} />
@@ -371,6 +378,7 @@ export default function LibraryScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.inputLabel}>Title</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={title} onChangeText={setTitle} />
               <Text style={styles.inputLabel}>Author</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={author} onChangeText={setAuthor} />
+              <Text style={styles.inputLabel}>Genre</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={genre} onChangeText={setGenre} placeholder="e.g. Fantasy, Sci-Fi, Mystery" placeholderTextColor={colors.textLight} />
               <Text style={styles.inputLabel}>Status</Text>
               <View style={styles.statusRow}>
                 {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
@@ -434,6 +442,7 @@ const styles = StyleSheet.create({
   coverAuthor: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '700', textAlign: 'center' },
   coverFooter: { position: 'absolute', bottom: 12, width: '100%', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, alignItems: 'center' },
   dateText: { color: 'rgba(255,255,255,0.6)', fontSize: 9, fontWeight: 'bold' },
+  genreText: { color: 'rgba(255,255,255,0.9)', fontSize: 8, fontWeight: '800', marginTop: 2 },
   miniRating: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
   miniRatingText: { color: 'white', fontSize: 9, fontWeight: 'bold', marginLeft: 2 },
   emptyState: { alignItems: 'center', marginTop: 100 },
