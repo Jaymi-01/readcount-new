@@ -2,9 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { collection, doc, getDoc, onSnapshot, query, where, setDoc, Timestamp } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, FadeInDown, ZoomIn, FadeIn, Easing } from 'react-native-reanimated';
 import { COLORS, darkColors } from '../../constants/colors';
 import { auth, db } from '../../firebaseConfig';
 import { DoodleBackground } from '../../components/DoodleBackground';
@@ -14,16 +14,140 @@ import Toast from 'react-native-toast-message';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+// --- WRAPPED ANIMATION SUB-COMPONENTS ---
+
+function ScatteredIcon({ index }: { index: number }) {
+  const x = useSharedValue(SCREEN_WIDTH / 2);
+  const y = useSharedValue(SCREEN_HEIGHT / 2);
+  const scale = useSharedValue(0);
+  const rotate = useSharedValue(0);
+
+  useEffect(() => {
+    const targetX = (Math.random() * SCREEN_WIDTH) - 20;
+    const targetY = (Math.random() * SCREEN_HEIGHT) - 20;
+    const delay = index * 40; 
+    
+    const timeout = setTimeout(() => {
+      x.value = withSpring(targetX, { damping: 12 });
+      y.value = withSpring(targetY, { damping: 12 });
+      scale.value = withSpring(Math.random() * 0.8 + 0.5);
+      rotate.value = withSpring(Math.random() * 360);
+    }, delay);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    position: 'absolute',
+    transform: [
+      { translateX: x.value },
+      { translateY: y.value },
+      { scale: scale.value },
+      { rotate: `${rotate.value}deg` }
+    ],
+    opacity: 0.6,
+  }));
+
+  const icons = ['book', 'library', 'bookmarks', 'document-text'];
+  const iconName = icons[index % icons.length] as any;
+
+  return (
+    <Animated.View style={style}>
+      <Ionicons name={iconName} size={40} color="white" />
+    </Animated.View>
+  );
+}
+
+function ScatterBooks({ count }: { count: number }) {
+  const numIcons = Math.min(count, 40);
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {Array.from({ length: numIcons }).map((_, i) => (
+        <ScatteredIcon key={i} index={i} />
+      ))}
+    </View>
+  );
+}
+
+function ScrambleText({ text, style }: { text: string, style?: any }) {
+  const [display, setDisplay] = useState('');
+  
+  useEffect(() => {
+    if (!text || text === 'NONE') {
+      setDisplay('NONE');
+      return;
+    }
+    
+    let iterations = 0;
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()';
+    const interval = setInterval(() => {
+      setDisplay(text.split('').map((letter, index) => {
+        if (index < iterations || letter === ' ') return text[index];
+        return chars[Math.floor(Math.random() * chars.length)];
+      }).join(''));
+      
+      iterations += 1/3;
+      if (iterations >= text.length) clearInterval(interval);
+    }, 30);
+    return () => clearInterval(interval);
+  }, [text]);
+
+  return <Text style={style} numberOfLines={1} adjustsFontSizeToFit>{display}</Text>;
+}
+
+function ScrollingMonths({ targetMonth }: { targetMonth: string }) {
+  const translateY = useSharedValue(0);
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const ITEM_HEIGHT = 80;
+  
+  const safeTarget = targetMonth === 'NONE' || !targetMonth ? 'JAN' : targetMonth;
+  
+  // Create a long list to scroll through
+  const extendedMonths = [...months, ...months, ...months, ...months, ...months];
+  // Find target in the 4th set
+  const finalIndex = (12 * 3) + months.findIndex(m => m.toUpperCase() === safeTarget);
+
+  useEffect(() => {
+    translateY.value = withTiming(-(finalIndex * ITEM_HEIGHT) + (SCREEN_HEIGHT / 2) - ITEM_HEIGHT, { 
+      duration: 3500,
+      easing: Easing.bezier(0.25, 1, 0.5, 1) // Decelerate smoothly
+    });
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }]
+  }));
+
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      <Animated.View style={animatedStyle}>
+        {extendedMonths.map((m, i) => {
+          const isTarget = i === finalIndex;
+          return (
+            <View key={i} style={{ height: ITEM_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ 
+                color: 'white', 
+                fontSize: isTarget ? 64 : 40, 
+                fontWeight: '900', 
+                opacity: isTarget ? 1 : 0.2,
+                textTransform: 'uppercase'
+              }}>
+                {m}
+              </Text>
+            </View>
+          );
+        })}
+      </Animated.View>
+    </View>
+  );
+}
+
 // --- SUB-COMPONENT FOR CONFETTI ---
 function ConfettiPiece({ index }: { index: number }) {
   const x = useSharedValue(Math.random() * SCREEN_WIDTH);
   const y = useSharedValue(-20);
   const rotate = useSharedValue(0);
   const opacity = useSharedValue(1);
-  const colors = [
-    '#bc6c25', '#dda15e', '#f59e0b', '#92400e', 
-    '#432818', '#99582a', '#bc4749', '#603808'
-  ];
+  const colors = ['#bc6c25', '#dda15e', '#f59e0b', '#92400e', '#432818', '#99582a', '#bc4749', '#603808'];
   const color = colors[index % colors.length];
 
   useEffect(() => {
@@ -34,11 +158,7 @@ function ConfettiPiece({ index }: { index: number }) {
   }, []);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: x.value },
-      { translateY: y.value },
-      { rotate: `${rotate.value}deg` }
-    ],
+    transform: [{ translateX: x.value }, { translateY: y.value }, { rotate: `${rotate.value}deg` }],
     opacity: opacity.value,
     backgroundColor: color,
     position: 'absolute',
@@ -52,37 +172,20 @@ function ConfettiPiece({ index }: { index: number }) {
 }
 
 // --- SUB-COMPONENT FOR ANIMATED BARS ---
-function PollBar({ 
-  index, 
-  count, 
-  relativeValue, 
-  theme 
-}: { 
-  index: number, 
-  count: number, 
-  relativeValue: number, 
-  theme: string 
-}) {
+function PollBar({ index, count, relativeValue, theme }: { index: number, count: number, relativeValue: number, theme: string }) {
   const colors = theme === 'dark' ? darkColors : COLORS;
   const barWidth = useSharedValue(0);
   
-  useFocusEffect(
-    useCallback(() => {
-      barWidth.value = 0;
-      barWidth.value = withTiming(relativeValue, { duration: 1000 });
-    }, [relativeValue])
-  );
+  useFocusEffect(useCallback(() => {
+    barWidth.value = 0;
+    barWidth.value = withTiming(relativeValue, { duration: 1000 });
+  }, [relativeValue]));
 
-  const animatedStyle = useAnimatedStyle(() => {
-    const intensity = barWidth.value > 0 ? 0.3 + barWidth.value * 0.7 : 0;
-    const baseColor = theme === 'dark' ? '136, 192, 208' : '94, 129, 172';
-    
-    return {
-      width: `${barWidth.value * 100}%`,
-      backgroundColor: theme === 'dark' ? colors.primary : colors.primary, // Using direct primary
-      opacity: barWidth.value > 0 ? 0.3 + barWidth.value * 0.7 : 0,
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    width: `${barWidth.value * 100}%`,
+    backgroundColor: theme === 'dark' ? colors.primary : colors.primary,
+    opacity: barWidth.value > 0 ? 0.3 + barWidth.value * 0.7 : 0,
+  }));
 
   return (
     <View style={[styles.barContainer, { backgroundColor: colors.border + '40' }]}>
@@ -103,7 +206,9 @@ export default function StatsScreen() {
   const [selectedYear, setSelectedYear] = useState<number | 'All'>(new Date().getFullYear());
   const [availableYears, setAvailableYears] = useState<(number | 'All')[]>([new Date().getFullYear()]);
 
-  const [showWrapped, setShowWrapped] = useState(false);
+  // Wrapped Story State: 0=Hidden, 1=Books, 2=Author, 3=Month, 4=Genre, 5=Summary
+  const [wrappedStep, setWrappedStep] = useState(0);
+  
   const [topMonth, setTopMonth] = useState('');
   const [topAuthor, setTopAuthor] = useState('');
   const [topGenre, setTopGenre] = useState('');
@@ -112,9 +217,7 @@ export default function StatsScreen() {
   const progressValue = useSharedValue(0);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (u) => { setUser(u); });
     return unsubscribe;
   }, []);
 
@@ -185,7 +288,7 @@ export default function StatsScreen() {
       const topGenreEntry = Object.entries(genres).sort((a,b) => b[1] - a[1])[0];
       setTopGenre(topGenreEntry ? topGenreEntry[0] : 'None');
 
-      if (count >= 20) setPersonality({ title: 'The Speed Demon', icon: 'bicycle', desc: 'You tear through books like they are nothing!' });
+      if (count >= 20) setPersonality({ title: 'The Speed Demon', icon: 'flash', desc: 'You tear through books like they are nothing!' });
       else if (topAuthEntry && topAuthEntry[1] >= 3) setPersonality({ title: 'The Loyal Fan', icon: 'heart', desc: `You really love ${topAuthEntry[0]}'s work!` });
       else if (count >= 10) setPersonality({ title: 'The Scholar', icon: 'school', desc: 'A dedicated reader with a wide range of interests.' });
       else if (count > 0) setPersonality({ title: 'The Casual Voyager', icon: 'boat', desc: 'Enjoying the journey, one page at a time.' });
@@ -208,6 +311,12 @@ export default function StatsScreen() {
         Toast.show({ type: 'success', text1: '🏆 Trophy Unlocked!', text2: `You reached your reading goal!`, visibilityTime: 4000 });
       }
     } catch (e) { console.error("Achievement error:", e); }
+  };
+
+  const advanceWrapped = () => {
+    if (wrappedStep > 0 && wrappedStep < 5) {
+      setWrappedStep(prev => prev + 1);
+    }
   };
 
   if (loading) {
@@ -249,7 +358,7 @@ export default function StatsScreen() {
               const isDec31 = now.getMonth() === 11 && now.getDate() === 31;
               if (selectedYear < now.getFullYear() || (selectedYear === now.getFullYear() && isDec31)) {
                 return (
-                  <TouchableOpacity style={[styles.wrappedBtn, { backgroundColor: colors.primary }]} onPress={() => setShowWrapped(true)}>
+                  <TouchableOpacity style={[styles.wrappedBtn, { backgroundColor: colors.primary }]} onPress={() => setWrappedStep(1)}>
                     <Ionicons name="sparkles" size={14} color="white" /><Text style={styles.wrappedBtnText}>WRAPPED</Text>
                   </TouchableOpacity>
                 );
@@ -276,23 +385,123 @@ export default function StatsScreen() {
         </View>
       </ScrollView>
 
-      <Modal visible={showWrapped} animationType="slide" transparent={false} onRequestClose={() => setShowWrapped(false)}>
-        <SafeAreaView style={[styles.wrappedContainer, { backgroundColor: colors.primary }]}>
-          {showWrapped && Array.from({ length: 50 }).map((_, i) => (<ConfettiPiece key={i} index={i} />))}
-          <TouchableOpacity style={styles.closeWrapped} onPress={() => setShowWrapped(false)}><Ionicons name="close" size={32} color="white" /></TouchableOpacity>
-          <ScrollView contentContainerStyle={styles.wrappedContent} showsVerticalScrollIndicator={false}>
-            <Text style={styles.wrappedYear}>{selectedYear === 'All' ? 'LIFETIME' : selectedYear}</Text><Text style={styles.wrappedTitle}>WRAPPED</Text>
-            <View style={styles.wrappedMainCard}><Text style={styles.wrappedLabel}>You finished</Text><Text style={styles.wrappedBigNumber}>{booksReadThisYear}</Text><Text style={styles.wrappedLabel}>books!</Text></View>
-            <View style={[styles.personalityCard, { backgroundColor: 'rgba(255,255,255,0.25)' }]}><View style={styles.personalityHeader}><Ionicons name={personality.icon as any} size={32} color="white" /><Text style={styles.personalityTitle}>{personality.title}</Text></View><Text style={styles.personalityDesc}>{personality.desc}</Text></View>
-            <View style={styles.wrappedRow}>
-              <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Ionicons name="calendar" size={24} color={colors.secondary} /><Text style={styles.wrappedSmallLabel}>Top Month</Text><Text style={styles.wrappedSmallValue}>{topMonth}</Text></View>
-              <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Ionicons name="person" size={24} color={colors.secondary} /><Text style={styles.wrappedSmallLabel}>Top Author</Text><Text style={styles.wrappedSmallValue} numberOfLines={1}>{topAuthor}</Text></View>
-              <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Ionicons name="book" size={24} color={colors.secondary} /><Text style={styles.wrappedSmallLabel}>Top Genre</Text><Text style={styles.wrappedSmallValue} numberOfLines={1}>{topGenre}</Text></View>
+      <Modal visible={wrappedStep > 0} animationType="slide" transparent={false} onRequestClose={() => setWrappedStep(0)}>
+        <TouchableWithoutFeedback onPress={advanceWrapped}>
+          <SafeAreaView style={[styles.wrappedContainer, { backgroundColor: colors.primary }]}>
+            
+            <View style={styles.progressIndicators}>
+              {[1, 2, 3, 4, 5].map(step => (
+                <View key={step} style={[styles.progressDot, { backgroundColor: wrappedStep >= step ? 'white' : 'rgba(255,255,255,0.3)' }]} />
+              ))}
             </View>
-            <View style={[styles.wrappedQuoteCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}><Text style={styles.wrappedQuote}>&quot;A reader lives a thousand lives before he dies.&quot;</Text><Text style={styles.wrappedQuoteAuthor}>— George R.R. Martin</Text></View>
-            <Text style={styles.wrappedFooter}>#ReadCountWrapped</Text>
-          </ScrollView>
-        </SafeAreaView>
+
+            <TouchableOpacity style={styles.closeWrapped} onPress={() => setWrappedStep(0)}><Ionicons name="close" size={32} color="white" /></TouchableOpacity>
+
+            {/* STORY SLIDE 1: TOTAL BOOKS (SCATTER) */}
+            {wrappedStep === 1 && (
+              <View style={styles.storySlide}>
+                <ScatterBooks count={booksReadThisYear} />
+                <Animated.View entering={ZoomIn.duration(800)} style={{ alignItems: 'center' }}>
+                  <Text style={styles.storyTitle}>This year, you finished</Text>
+                  <Text style={[styles.wrappedBigNumber, { fontSize: 120, textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 10 }, textShadowRadius: 20 }]}>{booksReadThisYear}</Text>
+                  <Text style={styles.storySubtitle}>books!</Text>
+                </Animated.View>
+                <Animated.Text entering={FadeInDown.delay(1500)} style={styles.tapToContinue}>Tap to continue</Animated.Text>
+              </View>
+            )}
+
+            {/* STORY SLIDE 2: TOP AUTHOR (SCRAMBLE) */}
+            {wrappedStep === 2 && (
+              <View style={styles.storySlide}>
+                <Animated.View entering={FadeInDown.duration(600)} style={{ alignItems: 'center', width: '100%' }}>
+                  <Text style={styles.storyTitle}>You had a clear favorite.</Text>
+                  <Text style={styles.storySubtitle}>Your most read author was...</Text>
+                  <View style={{ marginTop: 60, width: '100%', alignItems: 'center' }}>
+                    <ScrambleText text={topAuthor.toUpperCase()} style={[styles.wrappedBigNumber, { fontSize: 48, textAlign: 'center', lineHeight: 56 }]} />
+                  </View>
+                  <Animated.View entering={ZoomIn.delay(2000).springify()} style={{ marginTop: 40, alignItems: 'center' }}>
+                    <Ionicons name={personality.icon as any} size={64} color="rgba(255,255,255,0.8)" />
+                    <Text style={[styles.storyTitle, { marginTop: 16 }]}>{personality.title}</Text>
+                  </Animated.View>
+                </Animated.View>
+              </View>
+            )}
+
+            {/* STORY SLIDE 3: TOP MONTH (SLOT MACHINE) */}
+            {wrappedStep === 3 && (
+              <View style={styles.storySlide}>
+                <Animated.Text entering={FadeInDown.duration(600)} style={[styles.storyTitle, { position: 'absolute', top: 100, zIndex: 10 }]}>
+                  The month you read the most was...
+                </Animated.Text>
+                
+                <ScrollingMonths targetMonth={topMonth.toUpperCase()} />
+                
+                <Animated.View entering={FadeInDown.delay(3500)} style={{ position: 'absolute', bottom: 150, alignItems: 'center', zIndex: 10 }}>
+                  <Ionicons name="flame" size={48} color="#f59e0b" />
+                  <Text style={[styles.storySubtitle, { marginTop: 16 }]}>You were on fire!</Text>
+                </Animated.View>
+              </View>
+            )}
+
+            {/* STORY SLIDE 4: TOP GENRE (POP/EXPAND) */}
+            {wrappedStep === 4 && (
+              <View style={styles.storySlide}>
+                <Animated.Text entering={FadeInDown} style={styles.storyTitle}>Your favorite world to get lost in was</Animated.Text>
+                <View style={{ marginTop: 60, alignItems: 'center' }}>
+                  <Animated.View entering={ZoomIn.delay(500).springify().damping(12)}>
+                    <Ionicons name="planet" size={120} color="rgba(255,255,255,0.9)" />
+                  </Animated.View>
+                  <Animated.Text entering={FadeInDown.delay(1200).springify()} style={[styles.wrappedBigNumber, { fontSize: 64, marginTop: 24, textAlign: 'center' }]} adjustsFontSizeToFit numberOfLines={1}>
+                    {topGenre.toUpperCase()}
+                  </Animated.Text>
+                </View>
+              </View>
+            )}
+
+            {/* STORY SLIDE 5: FINAL SUMMARY */}
+            {wrappedStep === 5 && (
+              <View style={{ flex: 1 }}>
+                {Array.from({ length: 50 }).map((_, i) => (<ConfettiPiece key={i} index={i} />))}
+                <ScrollView contentContainerStyle={styles.wrappedContent} showsVerticalScrollIndicator={false}>
+                  <Animated.View entering={FadeInDown.delay(200).springify()}>
+                    <Text style={styles.wrappedYear}>{selectedYear === 'All' ? 'LIFETIME' : selectedYear}</Text>
+                    <Text style={styles.wrappedTitle}>WRAPPED</Text>
+                  </Animated.View>
+
+                  <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.wrappedMainCard}>
+                    <Text style={styles.wrappedLabel}>You finished</Text>
+                    <Text style={styles.wrappedBigNumber}>{booksReadThisYear}</Text>
+                    <Text style={styles.wrappedLabel}>books!</Text>
+                  </Animated.View>
+
+                  <Animated.View entering={FadeInDown.delay(600).springify()} style={[styles.personalityCard, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
+                    <View style={styles.personalityHeader}>
+                      <Ionicons name={personality.icon as any} size={32} color="white" />
+                      <Text style={styles.personalityTitle}>{personality.title}</Text>
+                    </View>
+                    <Text style={styles.personalityDesc}>{personality.desc}</Text>
+                  </Animated.View>
+
+                  <Animated.View entering={FadeInDown.delay(800).springify()} style={styles.wrappedRow}>
+                    <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Ionicons name="calendar" size={24} color={colors.secondary} /><Text style={styles.wrappedSmallLabel}>Top Month</Text><Text style={styles.wrappedSmallValue}>{topMonth}</Text></View>
+                    <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Ionicons name="person" size={24} color={colors.secondary} /><Text style={styles.wrappedSmallLabel}>Top Author</Text><Text style={styles.wrappedSmallValue} numberOfLines={1}>{topAuthor}</Text></View>
+                    <View style={[styles.wrappedSmallCard, { backgroundColor: 'rgba(255,255,255,0.15)' }]}><Ionicons name="book" size={24} color={colors.secondary} /><Text style={styles.wrappedSmallLabel}>Top Genre</Text><Text style={styles.wrappedSmallValue} numberOfLines={1}>{topGenre}</Text></View>
+                  </Animated.View>
+
+                  <Animated.View entering={FadeInDown.delay(1000).springify()} style={[styles.wrappedQuoteCard, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
+                    <Text style={styles.wrappedQuote}>&quot;A reader lives a thousand lives before he dies.&quot;</Text>
+                    <Text style={styles.wrappedQuoteAuthor}>— George R.R. Martin</Text>
+                  </Animated.View>
+
+                  <Animated.View entering={FadeInDown.delay(1200)}>
+                    <Text style={styles.wrappedFooter}>#ReadCountWrapped</Text>
+                  </Animated.View>
+                </ScrollView>
+              </View>
+            )}
+
+          </SafeAreaView>
+        </TouchableWithoutFeedback>
       </Modal>
     </SafeAreaView>
   );
@@ -330,7 +539,7 @@ const styles = StyleSheet.create({
   personalityTitle: { color: 'white', fontSize: 22, fontWeight: '900' },
   personalityDesc: { color: 'white', fontSize: 16, fontWeight: '500', opacity: 0.9, lineHeight: 22 },
   wrappedContainer: { flex: 1 },
-  closeWrapped: { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, right: 24, zIndex: 10 },
+  closeWrapped: { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, right: 24, zIndex: 50 },
   wrappedContent: { padding: 32, alignItems: 'center', paddingTop: 80 },
   wrappedYear: { color: 'white', fontSize: 24, fontWeight: '900', opacity: 0.8 },
   wrappedTitle: { color: 'white', fontSize: 56, fontWeight: '900', letterSpacing: -2, marginBottom: 40 },
@@ -345,4 +554,10 @@ const styles = StyleSheet.create({
   wrappedQuote: { color: 'white', fontSize: 20, fontStyle: 'italic', textAlign: 'center', lineHeight: 28 },
   wrappedQuoteAuthor: { color: 'white', fontSize: 14, fontWeight: 'bold', textAlign: 'right', marginTop: 16, opacity: 0.8 },
   wrappedFooter: { color: 'white', fontSize: 16, fontWeight: 'bold', opacity: 0.6 },
+  progressIndicators: { position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, left: 24, flexDirection: 'row', gap: 8, zIndex: 10 },
+  progressDot: { width: 32, height: 4, borderRadius: 2 },
+  storySlide: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  storyTitle: { color: 'white', fontSize: 28, fontWeight: '900', textAlign: 'center', opacity: 0.9 },
+  storySubtitle: { color: 'white', fontSize: 20, fontWeight: '600', textAlign: 'center', marginTop: 16, opacity: 0.8 },
+  tapToContinue: { position: 'absolute', bottom: 40, color: 'white', fontSize: 14, fontWeight: 'bold', opacity: 0.5, textTransform: 'uppercase', letterSpacing: 1 },
 });
