@@ -100,6 +100,29 @@ export default function SettingsScreen() {
 
   const handleLogout = async () => { try { await signOut(auth); router.replace('/auth'); } catch (e) { console.error(e); } };
 
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    setModalLoading(true);
+    try {
+      // 1. Delete user data from Firestore
+      await deleteDoc(doc(db, 'users', user.uid));
+      // 2. Delete the user from Auth
+      await deleteUser(user);
+      setShowDeleteModal(false);
+      router.replace('/auth');
+      Toast.show({ type: 'success', text1: 'Account Deleted' });
+    } catch (e: any) {
+      console.error(e);
+      let msg = 'Failed to delete account.';
+      if (e.code === 'auth/requires-recent-login') {
+        msg = 'Please log out and log back in to verify your identity before deleting.';
+      }
+      Toast.show({ type: 'error', text1: 'Error', text2: msg });
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const handleToggleLock = async () => {
     if (hasPin) {
       await removePin();
@@ -386,7 +409,7 @@ export default function SettingsScreen() {
 
       <Modal visible={showDeleteModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}><View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.danger }]}>Delete Account?</Text><TouchableOpacity onPress={() => setShowDeleteModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View><Text style={{ color: colors.textLight, textAlign: 'center', marginBottom: 24 }}>This is permanent. All library data will be lost forever.</Text><View style={{ flexDirection: 'row', gap: 12, width: '100%' }}><TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]} onPress={() => setShowDeleteModal(false)}><Text style={{ color: colors.textDark, fontWeight: 'bold' }}>Cancel</Text></TouchableOpacity><TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: colors.danger }]} onPress={() => {}}><Text style={{ color: 'white', fontWeight: 'bold' }}>Delete</Text></TouchableOpacity></View></View></View>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}><View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.danger }]}>Delete Account?</Text><TouchableOpacity onPress={() => setShowDeleteModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View><Text style={{ color: colors.textLight, textAlign: 'center', marginBottom: 24 }}>This is permanent. All library data will be lost forever.</Text><View style={{ flexDirection: 'row', gap: 12, width: '100%' }}><TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]} onPress={() => setShowDeleteModal(false)}><Text style={{ color: colors.textDark, fontWeight: 'bold' }}>Cancel</Text></TouchableOpacity><TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: colors.danger }]} onPress={handleDeleteAccount}>{modalLoading ? <ActivityIndicator color="white" /> : <Text style={{ color: 'white', fontWeight: 'bold' }}>Delete</Text>}</TouchableOpacity></View></View></View>
       </Modal>
     </ScrollView>
     </View>
