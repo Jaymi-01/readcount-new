@@ -91,12 +91,12 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const cloudPin = data.appLockPin;
         const localPin = await getStoredPin();
         
+        // Only sync FROM cloud to local. 
+        // Never sync local to cloud automatically to avoid cross-user contamination.
         if (cloudPin && !localPin) {
           await savePinLocally(cloudPin);
           setHasPin(true);
-          setIsLocked(true);
-        } else if (!cloudPin && localPin) {
-          await updateDoc(doc(db, 'users', userId), { appLockPin: localPin });
+          // Don't auto-lock on first sync to avoid jarring experience after login/signup
         }
 
         // Sync biometric preference
@@ -115,6 +115,16 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(u);
       if (u) {
         syncPinFromCloud(u.uid);
+      } else {
+        // Clear local lock state on logout to prevent leak to next user
+        deletePinLocally();
+        setHasPin(false);
+        setIsLocked(false);
+        setBiometricEnabledState(false);
+        setPinTimeoutState(0);
+        AsyncStorage.removeItem(ASYNC_STORAGE_BIOMETRIC_KEY);
+        AsyncStorage.removeItem(ASYNC_STORAGE_TIMEOUT_KEY);
+        AsyncStorage.removeItem(ASYNC_STORAGE_LAST_ACTIVE_KEY);
       }
     });
     return unsubscribe;
