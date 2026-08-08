@@ -226,6 +226,20 @@ export default function AchievementsScreen() {
         if (hour < 9) toUnlock['morning_reader'] = { date: Timestamp.fromDate(b.processedDate) };
       });
 
+      allBooks.forEach(b => {
+        let addedDate = b.processedDate;
+        const dAdded = b.dateAdded;
+        if (dAdded) {
+          if (dAdded.toDate) addedDate = dAdded.toDate();
+          else if (dAdded.seconds) addedDate = new Date(dAdded.seconds * 1000);
+          else addedDate = new Date(dAdded);
+        }
+        const addedHour = addedDate.getHours();
+        if (addedHour >= 23 || addedHour < 4) {
+          toUnlock['night_owl'] = { date: Timestamp.fromDate(addedDate) };
+        }
+      });
+
       const monthlyGroups: any = {};
       readBooks.forEach(b => { const key = `${b.processedDate.getFullYear()}-${b.processedDate.getMonth()}`; if (!monthlyGroups[key]) monthlyGroups[key] = []; monthlyGroups[key].push(b); });
       Object.values(monthlyGroups).forEach((books: any) => { const mCount = books.length; const lastBookDate = Timestamp.fromDate(books[books.length - 1].processedDate); if (mCount >= 30) toUnlock['speed_god'] = { date: lastBookDate }; if (mCount >= 10) toUnlock['speed_demon'] = { date: lastBookDate }; if (mCount >= 5) toUnlock['speedy_reader'] = { date: lastBookDate }; });
