@@ -4,6 +4,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Image } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS, darkColors } from '../constants/colors';
 import { auth, db } from '../firebaseConfig';
 import { DoodleBackground } from '../components/DoodleBackground';
@@ -23,6 +24,7 @@ export default function AuthScreen() {
   // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // -------------------------------------------------------------------------
   // SIGNUP LOGIC
@@ -68,7 +70,7 @@ export default function AuthScreen() {
         });
       } catch (firestoreError) {
         console.error("Firestore creation failed, rolling back auth:", firestoreError);
-        try { await user.delete(); } catch (e) {} 
+        try { await user.delete(); } catch {} 
         throw new Error("Failed to create user profile. Please try again.");
       }
 
@@ -216,14 +218,27 @@ export default function AuthScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.textDark }]}>Password</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.card, color: colors.textDark, borderColor: colors.border }]}
-              placeholder="••••••••"
-              placeholderTextColor={colors.textLight}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
+            <View style={[styles.passwordContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <TextInput
+                style={[styles.passwordInput, { color: colors.textDark }]}
+                placeholder="••••••••"
+                placeholderTextColor={colors.textLight}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeIcon}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off' : 'eye'}
+                  size={20}
+                  color={colors.textLight}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -236,7 +251,7 @@ export default function AuthScreen() {
 
           <View style={styles.footer}>
             <Text style={[styles.footerText, { color: colors.textLight }]}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => setMode('login')}>
+            <TouchableOpacity onPress={() => { setShowPassword(false); setMode('login'); }}>
               <Text style={[styles.link, { color: colors.primary }]}>Log In</Text>
             </TouchableOpacity>
           </View>
@@ -297,6 +312,7 @@ export default function AuthScreen() {
               style={[styles.button, { backgroundColor: colors.primary }]}
               onPress={() => {
                 setSubmitted(false);
+                setShowPassword(false);
                 setMode('login');
               }}
             >
@@ -305,7 +321,7 @@ export default function AuthScreen() {
           )}
 
           {!submitted && (
-            <TouchableOpacity style={styles.backButton} onPress={() => setMode('login')}>
+            <TouchableOpacity style={styles.backButton} onPress={() => { setShowPassword(false); setMode('login'); }}>
               <Text style={[styles.link, { color: colors.textLight }]}>Back to Login</Text>
             </TouchableOpacity>
           )}
@@ -350,18 +366,31 @@ export default function AuthScreen() {
         <View style={styles.inputGroup}>
           <View style={styles.passwordHeader}>
             <Text style={[styles.label, { color: colors.textDark }]}>Password</Text>
-            <TouchableOpacity onPress={() => { setSubmitted(false); setMode('forgot'); }}>
+            <TouchableOpacity onPress={() => { setSubmitted(false); setShowPassword(false); setMode('forgot'); }}>
               <Text style={[styles.forgotPassword, { color: colors.primary }]}>Forgot Password?</Text>
             </TouchableOpacity>
           </View>
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.card, color: colors.textDark, borderColor: colors.border }]}
-            placeholder="••••••••"
-            placeholderTextColor={colors.textLight}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={[styles.passwordContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <TextInput
+              style={[styles.passwordInput, { color: colors.textDark }]}
+              placeholder="••••••••"
+              placeholderTextColor={colors.textLight}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.eyeIcon}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off' : 'eye'}
+                size={20}
+                color={colors.textLight}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <TouchableOpacity
@@ -374,7 +403,7 @@ export default function AuthScreen() {
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.textLight }]}>Don&apos;t have an account? </Text>
-          <TouchableOpacity onPress={() => setMode('signup')}>
+          <TouchableOpacity onPress={() => { setShowPassword(false); setMode('signup'); }}>
             <Text style={[styles.link, { color: colors.primary }]}>Sign Up</Text>
           </TouchableOpacity>
         </View>
@@ -446,6 +475,26 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 16,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    height: 50,
+  },
+  passwordInput: {
+    flex: 1,
+    height: '100%',
+    paddingHorizontal: 16,
+    fontSize: 16,
+  },
+  eyeIcon: {
+    paddingRight: 16,
+    paddingLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: '100%',
   },
   button: {
     height: 56,
