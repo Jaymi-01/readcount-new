@@ -301,24 +301,22 @@ export default function StatsScreen() {
   useEffect(() => {
     if (!user) return;
 
-    const fetchUserMeta = async () => {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          setYearlyGoal(userDoc.data().readingGoal || 0);
-          const startYear = userDoc.data().dateAdded?.toDate ? userDoc.data().dateAdded.toDate().getFullYear() : 2025;
-          const currentYear = new Date().getFullYear();
-          const years: (number | 'All')[] = ['All'];
-          for (let y = currentYear; y >= Math.min(startYear, 2025); y--) {
-            years.push(y);
-          }
-          setAvailableYears(years);
+    const unsubscribeUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const startYear = data.dateAdded?.toDate ? data.dateAdded.toDate().getFullYear() : 2025;
+        const currentYearStr = selectedYear === 'All' ? new Date().getFullYear().toString() : selectedYear.toString();
+        const goalForYear = data.readingGoals?.[currentYearStr] ?? (currentYearStr === startYear.toString() ? (data.readingGoal ?? 0) : 0);
+        setYearlyGoal(goalForYear);
+
+        const currentYear = new Date().getFullYear();
+        const years: (number | 'All')[] = ['All'];
+        for (let y = currentYear; y >= Math.min(startYear, 2025); y--) {
+          years.push(y);
         }
-      } catch (error) {
-        console.error("Error fetching user meta:", error);
+        setAvailableYears(years);
       }
-    };
-    fetchUserMeta();
+    });
 
     const q = query(collection(db, 'books'), where('userId', '==', user.uid), where('status', '==', 'read'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -421,8 +419,9 @@ export default function StatsScreen() {
     return () => {
       unsubscribe();
       unsubscribeAch();
+      unsubscribeUser();
     };
-  }, [user, selectedYear, yearlyGoal, checkAndUnlockAchievement, progressValue]);
+  }, [user, selectedYear, checkAndUnlockAchievement, progressValue]);
 
 
 
