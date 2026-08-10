@@ -4,7 +4,7 @@ import { collection, doc, getDoc, onSnapshot, query, where, setDoc, Timestamp } 
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, FadeInDown, ZoomIn, FadeIn, Easing } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, FadeInDown, ZoomIn, Easing } from 'react-native-reanimated';
 import { COLORS, darkColors } from '../../constants/colors';
 import { auth, db } from '../../firebaseConfig';
 import { DoodleBackground } from '../../components/DoodleBackground';
@@ -34,7 +34,7 @@ function ScatteredIcon({ index }: { index: number }) {
       rotate.value = withSpring(Math.random() * 360);
     }, delay);
     return () => clearTimeout(timeout);
-  }, []);
+  }, [index, rotate, scale, x, y]);
 
   const style = useAnimatedStyle(() => ({
     position: 'absolute',
@@ -111,7 +111,7 @@ function ScrollingMonths({ targetMonth }: { targetMonth: string }) {
       duration: 3500,
       easing: Easing.bezier(0.25, 1, 0.5, 1) // Decelerate smoothly
     });
-  }, []);
+  }, [finalIndex, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }]
@@ -155,7 +155,7 @@ function ConfettiPiece({ index }: { index: number }) {
     y.value = withTiming(SCREEN_HEIGHT + 20, { duration });
     rotate.value = withTiming(Math.random() * 1000, { duration });
     opacity.value = withTiming(0, { duration });
-  }, []);
+  }, [opacity, rotate, y]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: x.value }, { translateY: y.value }, { rotate: `${rotate.value}deg` }],
@@ -179,7 +179,7 @@ function PollBar({ index, count, relativeValue, theme }: { index: number, count:
   useFocusEffect(useCallback(() => {
     barWidth.value = 0;
     barWidth.value = withTiming(relativeValue, { duration: 1000 });
-  }, [relativeValue]));
+  }, [barWidth, relativeValue]));
 
   const animatedStyle = useAnimatedStyle(() => ({
     width: `${barWidth.value * 100}%`,
@@ -215,6 +215,18 @@ export default function StatsScreen() {
   const [personality, setPersonality] = useState({ title: '', icon: '', desc: '' });
 
   const progressValue = useSharedValue(0);
+
+  const checkAndUnlockAchievement = useCallback(async (achievementId: string) => {
+    if (!user) return;
+    try {
+      const achRef = doc(db, 'users', user.uid, 'achievements', achievementId);
+      const achSnap = await getDoc(achRef);
+      if (!achSnap.exists()) {
+        await setDoc(achRef, { unlocked: true, unlockedAt: Timestamp.now() });
+        Toast.show({ type: 'success', text1: '🏆 Trophy Unlocked!', text2: `You reached your reading goal!`, visibilityTime: 4000 });
+      }
+    } catch (e) { console.error("Achievement error:", e); }
+  }, [user]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => { setUser(u); });
@@ -299,19 +311,7 @@ export default function StatsScreen() {
     });
 
     return () => unsubscribe();
-  }, [user, selectedYear, yearlyGoal]);
-
-  const checkAndUnlockAchievement = async (achievementId: string) => {
-    if (!user) return;
-    try {
-      const achRef = doc(db, 'users', user.uid, 'achievements', achievementId);
-      const achSnap = await getDoc(achRef);
-      if (!achSnap.exists()) {
-        await setDoc(achRef, { unlocked: true, unlockedAt: Timestamp.now() });
-        Toast.show({ type: 'success', text1: '🏆 Trophy Unlocked!', text2: `You reached your reading goal!`, visibilityTime: 4000 });
-      }
-    } catch (e) { console.error("Achievement error:", e); }
-  };
+  }, [user, selectedYear, yearlyGoal, checkAndUnlockAchievement, progressValue]);
 
   const advanceWrapped = () => {
     if (wrappedStep > 0 && wrappedStep < 5) {
