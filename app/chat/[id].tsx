@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, View, Text, TextInput, FlatList, TouchableOpacity, 
-  KeyboardAvoidingView, Platform, ActivityIndicator, Modal, StatusBar 
+  KeyboardAvoidingView, Platform, Modal, StatusBar 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, darkColors } from '../../constants/colors';
 import { DoodleBackground } from '../../components/DoodleBackground';
 import { useTheme } from '../../context/ThemeContext';
-import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, doc, setDoc, increment, getDoc } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, Timestamp, doc, setDoc, increment } from 'firebase/firestore';
 import { auth, db } from '../../firebaseConfig';
 import Toast from 'react-native-toast-message';
 
@@ -32,7 +32,6 @@ export default function ChatScreen() {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
-  const [loading, setLoading] = useState(true);
   const [reportModalVisible, setReportModalVisible] = useState(false);
   const [reportReason, setReportReason] = useState('');
 
@@ -47,7 +46,6 @@ export default function ChatScreen() {
       const msgs: Message[] = [];
       snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() } as Message));
       setMessages(msgs);
-      setLoading(false);
     });
     return () => unsubscribe();
   }, [currentUser, recipientId, chatId]);
@@ -88,7 +86,7 @@ export default function ChatScreen() {
       setReportModalVisible(false);
       setReportReason('');
       Toast.show({ type: 'success', text1: 'Report Sent', text2: 'We will review this user.' });
-    } catch (e) {
+    } catch {
       Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to send report.' });
     }
   };
