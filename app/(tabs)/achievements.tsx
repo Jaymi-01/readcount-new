@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator, Platform, StatusBar, TouchableOpacity, Dimensions, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../../firebaseConfig';
@@ -37,6 +37,7 @@ interface Book {
   dateStartedReading?: any;
   rating?: number;
   review?: string;
+  genre?: string;
   processedDate: Date;
 }
 
@@ -45,7 +46,7 @@ const CATEGORIES = [
   { id: 'habits', title: 'DAILY RITUALS' },
   { id: 'speed', title: 'SPEED MILESTONES' },
   { id: 'streaks', title: 'CONSISTENCY MATTERS' },
-  { id: 'variety', title: 'AUTHOR EXPLORATION' },
+  { id: 'variety', title: 'VARIETY & EXPLORATION' },
   { id: 'critics', title: 'CRITIC CIRCLE' },
   { id: 'collection', title: 'SHELF MASTER' },
 ];
@@ -56,14 +57,27 @@ const ACHIEVEMENT_DEFINITIONS: Achievement[] = [
   { id: 'the_finisher', category: 'basics', title: 'The Finisher', desc: 'Reach your annual reading goal', howToEarn: 'completing your annual reading goal!', icon: 'trophy', unlocked: false },
   { id: 'page_turner', category: 'basics', title: 'Page Turner', desc: 'Move a book to Reading', howToEarn: 'starting to read a book from your list.', icon: 'book', unlocked: false },
   { id: 'godmode', category: 'basics', title: 'The Creator', desc: 'The Creator', howToEarn: 'being the one who built this entire universe.', icon: 'code-slash', unlocked: false },
+  { id: 'bronze_milestone', category: 'basics', title: 'Bronze Milestone', desc: 'Read 10 books in total', howToEarn: 'marking 10 books as read.', icon: 'medal', total: 10, unlocked: false },
+  { id: 'silver_milestone', category: 'basics', title: 'Silver Milestone', desc: 'Read 25 books in total', howToEarn: 'marking 25 books as read.', icon: 'ribbon', total: 25, unlocked: false },
+  { id: 'gold_milestone', category: 'basics', title: 'Gold Milestone', desc: 'Read 50 books in total', howToEarn: 'marking 50 books as read.', icon: 'trophy', total: 50, unlocked: false },
+  { id: 'diamond_milestone', category: 'basics', title: 'Diamond Milestone', desc: 'Read 100 books in total', howToEarn: 'marking 100 books as read.', icon: 'sparkles', total: 100, unlocked: false },
   
   { id: 'weekend_warrior', category: 'habits', title: 'Weekend Warrior', desc: 'Finish a book on the weekend', howToEarn: 'completing a book on a Saturday or Sunday.', icon: 'cafe', unlocked: false },
   { id: 'morning_reader', category: 'habits', title: 'Early Bird', desc: 'Finish a book before 9 AM', howToEarn: 'completing a book early in the morning.', icon: 'alarm', unlocked: false },
   { id: 'night_owl', category: 'habits', title: 'Night Owl', desc: 'Add a book after 11 PM', howToEarn: 'starting a new book late at night.', icon: 'owl', iconFamily: 'MaterialCommunityIcons', unlocked: false },
+  { id: 'first_note', category: 'habits', title: 'Draftsman', desc: 'Write your first reading note', howToEarn: 'writing your first reading note.', icon: 'pencil-outline', unlocked: false },
+  { id: 'deep_thinker', category: 'habits', title: 'Deep Thinker', desc: 'Write 10 notes across your books', howToEarn: 'writing 10 reading notes.', icon: 'bulb-outline', total: 10, unlocked: false },
+  { id: 'goal_setter', category: 'habits', title: 'Goal Setter', desc: 'Set your annual reading goal', howToEarn: 'updating your annual reading goal in settings.', icon: 'flag', unlocked: false },
+  { id: 'lunch_reader', category: 'habits', title: 'Lunch Break', desc: 'Finish a book between 12 PM and 2 PM', howToEarn: 'finishing a book during lunch hours.', icon: 'pizza', unlocked: false },
+  { id: 'midnight_reader', category: 'habits', title: 'Midnight Marathon', desc: 'Finish a book between 12 AM and 4 AM', howToEarn: 'finishing a book late at night.', icon: 'moon', unlocked: false },
+  { id: 'annotator_notes', category: 'habits', title: 'Annotator', desc: 'Write 5 reading notes', howToEarn: 'writing 5 reading notes in total.', icon: 'document-text', total: 5, unlocked: false },
+  { id: 'chronicler', category: 'habits', title: 'The Chronicler', desc: 'Write 25 notes in total', howToEarn: 'writing 25 reading notes in total.', icon: 'journal', total: 25, unlocked: false },
 
   { id: 'speedy_reader', category: 'speed', title: 'Speedy Reader', desc: 'Finish 5 books in a month', howToEarn: 'finishing 5 books in a single month.', icon: 'walk', total: 5, unlocked: false },
   { id: 'speed_demon', category: 'speed', title: 'Speed Demon', desc: 'Finish 10 books in a month', howToEarn: 'finishing 10 books in a single month.', icon: 'bicycle', total: 10, unlocked: false },
   { id: 'speed_god', category: 'speed', title: 'Speed God', desc: 'Finish 30 books in a month', howToEarn: 'finishing 30 books in a single month! Absolute legend.', icon: 'flame', total: 30, unlocked: false },
+  { id: 'book_devourer', category: 'speed', title: 'Book Devourer', desc: 'Finish a book within 48 hours of starting it', howToEarn: 'finishing a book within 48 hours of starting it.', icon: 'restaurant', unlocked: false },
+  { id: 'book_blitzer', category: 'speed', title: 'Book Blitzer', desc: 'Finish a book within 24 hours of starting it', howToEarn: 'finishing a book within 24 hours of starting it.', icon: 'flash', unlocked: false },
 
   { id: 'consistent_reader', category: 'streaks', title: '3 Month Streak', desc: 'Read at least 1 book for 3 months', howToEarn: 'finishing at least one book for 3 months in a row.', icon: 'calendar', total: 3, unlocked: false },
   { id: 'half_year_streak', category: 'streaks', title: '6 Month Streak', desc: 'Read at least 1 book for 6 months', howToEarn: 'finishing at least one book for 6 months in a row.', icon: 'calendar-number', total: 6, unlocked: false },
@@ -73,14 +87,24 @@ const ACHIEVEMENT_DEFINITIONS: Achievement[] = [
   { id: 'author_bestie', category: 'variety', title: "Author's Bestie", desc: 'Read 5 books by one author', howToEarn: 'reading 5 books by the same author.', icon: 'people', total: 5, unlocked: false },
   { id: 'the_polymath', category: 'variety', title: 'The Polymath', desc: 'Read 5 different authors', howToEarn: 'reading books from 5 different authors.', icon: 'globe', total: 5, unlocked: false },
   { id: 'variety_king', category: 'variety', title: 'Variety King', desc: 'Read 10 different authors', howToEarn: 'reading books from 10 different authors.', icon: 'color-palette', total: 10, unlocked: false },
+  { id: 'genre_explorer', category: 'variety', title: 'Genre Explorer', desc: 'Read books from 3 different genres', howToEarn: 'reading books from 3 different genres.', icon: 'compass', total: 3, unlocked: false },
+  { id: 'renaissance_reader', category: 'variety', title: 'Renaissance Reader', desc: 'Read books from 5 different genres', howToEarn: 'reading books from 5 different genres.', icon: 'telescope', total: 5, unlocked: false },
+  { id: 'multitasker_reader', category: 'variety', title: 'Multitasker', desc: 'Read 3 books simultaneously', howToEarn: 'having 3 books in your "Reading" list at the same time.', icon: 'layers', total: 3, unlocked: false },
+  { id: 'eclectic_reader', category: 'variety', title: 'Eclectic Reader', desc: 'Read books from 10 different genres', howToEarn: 'reading books from 10 different genres.', icon: 'compass', total: 10, unlocked: false },
   
   { id: 'first_opinion', category: 'critics', title: 'First Opinion', desc: 'Rate your first book', howToEarn: 'sharing your very first book rating.', icon: 'chatbox-ellipses', unlocked: false },
   { id: 'the_critic', category: 'critics', title: 'The Critic', desc: 'Rate 10 books', howToEarn: 'sharing your opinion and rating 10 books.', icon: 'star-half', total: 10, unlocked: false },
   { id: 'super_critic', category: 'critics', title: 'Super Critic', desc: 'Rate 25 books', howToEarn: 'sharing your opinion and rating 25 books.', icon: 'star', total: 25, unlocked: false },
+  { id: 'masterpiece_finder', category: 'critics', title: 'Masterpiece Finder', desc: 'Give a book a 5-star rating', howToEarn: 'giving a book a perfect 5-star rating.', icon: 'heart', unlocked: false },
+  { id: 'honest_critic', category: 'critics', title: 'Honest Critic', desc: 'Give a book a 1-star rating', howToEarn: 'giving a book an honest 1-star rating.', icon: 'thumbs-down', unlocked: false },
+  { id: 'balanced_critic', category: 'critics', title: 'Balanced Critic', desc: 'Rate books 1, 3, and 5 stars', howToEarn: 'rating books with 1, 3, and 5 stars.', icon: 'shapes', total: 3, unlocked: false },
+  { id: 'generous_soul', category: 'critics', title: 'Generous Soul', desc: 'Give 5 books a perfect 5-star rating', howToEarn: 'giving 5 books a 5-star rating.', icon: 'happy', total: 5, unlocked: false },
 
   { id: 'indecisive', category: 'collection', title: 'Indecisive', desc: 'Have 3 books in To-Read', howToEarn: 'having 3 books in your To-Read list.', icon: 'help-circle', total: 3, unlocked: false },
   { id: 'cant_make_up_mind', category: 'collection', title: "Can't Make Up Your Mind", desc: 'Have 5 books in To-Read', howToEarn: 'having 5 books in your To-Read list.', icon: 'git-branch', total: 5, unlocked: false },
   { id: 'the_archivist', category: 'collection', title: 'The Archivist', desc: 'Have 10 books in To-Read', howToEarn: 'having 10 books in your To-Read list.', icon: 'layers', total: 10, unlocked: false },
+  { id: 'book_collector', category: 'collection', title: 'Book Collector', desc: 'Add 50 books to your library', howToEarn: 'having 50 books in your library in total.', icon: 'library', total: 50, unlocked: false },
+  { id: 'perfect_balance', category: 'collection', title: 'Perfect Balance', desc: 'Have exactly 5 books in To-Read, Reading, and Read', howToEarn: 'having exactly 5 books in To-Read, 5 in Reading, and 5 in Read lists at the same time.', icon: 'grid', unlocked: false },
 ];
 
 function TrophyItem({ item, colors, onDetails, isGodModeUser }: { item: Achievement, colors: any, onDetails: (a: Achievement) => void, isGodModeUser: boolean }) {
@@ -140,7 +164,9 @@ export default function AchievementsScreen() {
   const isGodModeUser = user?.email === 'millerjoel7597@gmail.com';
 
   const [unlockedData, setUnlockedData] = useState<{[key: string]: any}>({});
-  const [liveProgress, setLiveProgress] = useState<{[key: string]: number}>({});
+  const [allBooks, setAllBooks] = useState<Book[]>([]);
+  const [notesCount, setNotesCount] = useState(0);
+  const [yearlyGoal, setYearlyGoal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedAch, setSelectedAch] = useState<Achievement | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -157,6 +183,11 @@ export default function AchievementsScreen() {
     try {
       const qAll = query(collection(db, 'books'), where('userId', '==', user.uid));
       const allSnap = await getDocs(qAll);
+      
+      const qNotesAll = query(collection(db, 'notes'), where('userId', '==', user.uid));
+      const notesSnap = await getDocs(qNotesAll);
+      const notesCountVal = notesSnap.size;
+
       const allBooks: Book[] = allSnap.docs.map(doc => {
         const d = doc.data();
         let date = d.dateFinished || d.dateAdded;
@@ -223,6 +254,8 @@ export default function AchievementsScreen() {
         const hour = b.processedDate.getHours();
         if (day === 0 || day === 6) toUnlock['weekend_warrior'] = { date: Timestamp.fromDate(b.processedDate) };
         if (hour < 9) toUnlock['morning_reader'] = { date: Timestamp.fromDate(b.processedDate) };
+        if (hour >= 12 && hour < 14) toUnlock['lunch_reader'] = { date: Timestamp.fromDate(b.processedDate) };
+        if (hour >= 0 && hour < 4) toUnlock['midnight_reader'] = { date: Timestamp.fromDate(b.processedDate) };
       });
 
       allBooks.forEach(b => {
@@ -249,6 +282,170 @@ export default function AchievementsScreen() {
       }
       if (new Set(allBooks.filter(b => b.status === 'reading').map(b => b.author)).size >= 2) toUnlock['double_feature'] = { date: Timestamp.now() };
       if (user.email === 'millerjoel7597@gmail.com') toUnlock['godmode'] = { date: Timestamp.now() };
+
+      // Notes backfill
+      if (notesCountVal >= 1) {
+        let earliestNoteDate = Timestamp.now();
+        notesSnap.forEach(dDoc => {
+          const cDate = dDoc.data().createdAt || dDoc.data().updatedAt;
+          if (cDate) {
+            let noteDate = cDate;
+            if (cDate.toDate) noteDate = cDate.toDate(); else noteDate = new Date(cDate);
+            if (noteDate.getTime() < earliestNoteDate.toDate().getTime()) {
+              earliestNoteDate = Timestamp.fromDate(noteDate);
+            }
+          }
+        });
+        toUnlock['first_note'] = { date: earliestNoteDate };
+      }
+      if (notesCountVal >= 10) {
+        toUnlock['deep_thinker'] = { date: Timestamp.now() };
+      }
+
+      // Genre explorer backfill
+      const genresSet = new Set(readBooks.map(b => b.genre?.trim()?.toLowerCase()).filter((g): g is string => !!g));
+      if (genresSet.size >= 3) {
+        const foundGenres = new Set();
+        let date3 = Timestamp.now();
+        for (const b of readBooks) {
+          if (b.genre) {
+            const gNorm = b.genre.trim().toLowerCase();
+            if (!foundGenres.has(gNorm)) {
+              foundGenres.add(gNorm);
+              if (foundGenres.size === 3) {
+                date3 = Timestamp.fromDate(b.processedDate);
+                break;
+              }
+            }
+          }
+        }
+        toUnlock['genre_explorer'] = { date: date3 };
+      }
+      if (genresSet.size >= 5) {
+        const foundGenres = new Set();
+        let date5 = Timestamp.now();
+        for (const b of readBooks) {
+          if (b.genre) {
+            const gNorm = b.genre.trim().toLowerCase();
+            if (!foundGenres.has(gNorm)) {
+              foundGenres.add(gNorm);
+              if (foundGenres.size === 5) {
+                date5 = Timestamp.fromDate(b.processedDate);
+                break;
+              }
+            }
+          }
+        }
+        toUnlock['renaissance_reader'] = { date: date5 };
+      }
+      if (genresSet.size >= 10) {
+        const foundGenres = new Set();
+        let date10 = Timestamp.now();
+        for (const b of readBooks) {
+          if (b.genre) {
+            const gNorm = b.genre.trim().toLowerCase();
+            if (!foundGenres.has(gNorm)) {
+              foundGenres.add(gNorm);
+              if (foundGenres.size === 10) {
+                date10 = Timestamp.fromDate(b.processedDate);
+                break;
+              }
+            }
+          }
+        }
+        toUnlock['eclectic_reader'] = { date: date10 };
+      }
+
+      // Critics masterpieces / lower stars backfill
+      const fiveStarBooks = readBooks.filter(b => b.rating === 5);
+      if (fiveStarBooks.length >= 1) {
+        toUnlock['masterpiece_finder'] = { date: Timestamp.fromDate(fiveStarBooks[0].processedDate) };
+      }
+      const oneStarBooks = readBooks.filter(b => b.rating === 1);
+      if (oneStarBooks.length >= 1) {
+        toUnlock['honest_critic'] = { date: Timestamp.fromDate(oneStarBooks[0].processedDate) };
+      }
+
+      // Reading pace backfill
+      const devouredBooks = readBooks.filter(b => {
+        if (!b.dateStartedReading || !b.dateFinished) return false;
+        let start = b.dateStartedReading;
+        let finish = b.dateFinished;
+        if (start.toDate) start = start.toDate(); else start = new Date(start);
+        if (finish.toDate) finish = finish.toDate(); else finish = new Date(finish);
+        const diffMs = finish.getTime() - start.getTime();
+        return diffMs > 0 && diffMs <= 48 * 60 * 60 * 1000;
+      });
+      if (devouredBooks.length >= 1) {
+        toUnlock['book_devourer'] = { date: Timestamp.fromDate(devouredBooks[0].processedDate) };
+      }
+
+      const blitzedBooks = readBooks.filter(b => {
+        if (!b.dateStartedReading || !b.dateFinished) return false;
+        let start = b.dateStartedReading;
+        let finish = b.dateFinished;
+        if (start.toDate) start = start.toDate(); else start = new Date(start);
+        if (finish.toDate) finish = finish.toDate(); else finish = new Date(finish);
+        const diffMs = finish.getTime() - start.getTime();
+        return diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000;
+      });
+      if (blitzedBooks.length >= 1) {
+        toUnlock['book_blitzer'] = { date: Timestamp.fromDate(blitzedBooks[0].processedDate) };
+      }
+
+      // Goal Setter backfill
+      if (readingGoal > 0) {
+        toUnlock['goal_setter'] = { date: Timestamp.now() };
+      }
+
+      // Book Collector backfill
+      if (allBooks.length >= 50) {
+        const sortedByAdded = [...allBooks].sort((a, b) => {
+          const da = a.dateAdded?.toDate ? a.dateAdded.toDate() : new Date(a.dateAdded);
+          const dbVal = b.dateAdded?.toDate ? b.dateAdded.toDate() : new Date(b.dateAdded);
+          return da.getTime() - dbVal.getTime();
+        });
+        toUnlock['book_collector'] = { date: sortedByAdded[49].dateAdded || Timestamp.now() };
+      }
+
+      // Multitasker backfill
+      const readingBooksCount = allBooks.filter(b => b.status === 'reading').length;
+      if (readingBooksCount >= 3) {
+        toUnlock['multitasker_reader'] = { date: Timestamp.now() };
+      }
+
+      // Perfect Balance backfill
+      const toReadCountBackfill = allBooks.filter(b => b.status === 'toread').length;
+      const readingCountBackfill = allBooks.filter(b => b.status === 'reading').length;
+      const readCountBackfill = readBooks.length;
+      if (toReadCountBackfill === 5 && readingCountBackfill === 5 && readCountBackfill === 5) {
+        toUnlock['perfect_balance'] = { date: Timestamp.now() };
+      }
+
+      // Milestone Tiers backfill
+      if (readBooks.length >= 10) toUnlock['bronze_milestone'] = { date: Timestamp.fromDate(readBooks[9].processedDate) };
+      if (readBooks.length >= 25) toUnlock['silver_milestone'] = { date: Timestamp.fromDate(readBooks[24].processedDate) };
+      if (readBooks.length >= 50) toUnlock['gold_milestone'] = { date: Timestamp.fromDate(readBooks[49].processedDate) };
+      if (readBooks.length >= 100) toUnlock['diamond_milestone'] = { date: Timestamp.fromDate(readBooks[99].processedDate) };
+
+      // Notes Depth backfill
+      if (notesCountVal >= 5) toUnlock['annotator_notes'] = { date: Timestamp.now() };
+      if (notesCountVal >= 25) toUnlock['chronicler'] = { date: Timestamp.now() };
+
+      // Balanced Critic backfill
+      const ratings = readBooks.map(b => b.rating).filter((r): r is number => typeof r === 'number' && r > 0);
+      const has1 = ratings.includes(1);
+      const has3 = ratings.includes(3);
+      const has5 = ratings.includes(5);
+      if (has1 && has3 && has5) {
+        toUnlock['balanced_critic'] = { date: Timestamp.now() };
+      }
+
+      // Generous Soul backfill
+      const fiveStarBooksBackfill = readBooks.filter(b => b.rating === 5);
+      if (fiveStarBooksBackfill.length >= 5) {
+        toUnlock['generous_soul'] = { date: Timestamp.fromDate(fiveStarBooksBackfill[4].processedDate) };
+      }
 
       // Streaks logic for backfill
       const monthMap: any = {};
@@ -295,39 +492,169 @@ export default function AchievementsScreen() {
     });
     const qBooks = query(collection(db, 'books'), where('userId', '==', user.uid));
     const unsubscribeBooks = onSnapshot(qBooks, (snapshot) => {
-      const allBooks = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Book));
-      const readBooks = allBooks.filter(b => b.status === 'read');
-      const toReadCount = allBooks.filter(b => b.status === 'toread').length;
-      const prog: any = {};
-      prog['quick_start'] = Math.min(allBooks.length, 3);
-      prog['indecisive'] = Math.min(toReadCount, 3); prog['cant_make_up_mind'] = Math.min(toReadCount, 5); prog['the_archivist'] = Math.min(toReadCount, 10);
-      prog['double_feature'] = Math.min(new Set(allBooks.filter(b => b.status === 'reading').map(b => b.author)).size, 2);
-      const uniqueAuthorsCount = new Set(readBooks.map(b => b.author)).size;
-      prog['the_polymath'] = Math.min(uniqueAuthorsCount, 5); prog['variety_king'] = Math.min(uniqueAuthorsCount, 10);
-      const ratedCount = readBooks.filter(b => (b.rating && b.rating > 0) || b.review === 'good' || b.review === 'bad').length;
-      prog['first_opinion'] = Math.min(ratedCount, 1);
-      prog['the_critic'] = Math.min(ratedCount, 10); prog['super_critic'] = Math.min(ratedCount, 25);
-      const now = new Date();
-      const thisMonthCount = readBooks.filter(b => {
-        let d = b.dateFinished || b.dateAdded; if (d?.toDate) d = d.toDate(); else if (d?.seconds) d = new Date(d.seconds * 1000); else d = new Date(d);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      }).length;
-      prog['speedy_reader'] = Math.min(thisMonthCount, 5); prog['speed_demon'] = Math.min(thisMonthCount, 10); prog['speed_god'] = Math.min(thisMonthCount, 30);
-      const authorCounts: any = {}; readBooks.forEach(b => authorCounts[b.author] = (authorCounts[b.author] || 0) + 1);
-      prog['author_bestie'] = Math.min(Math.max(...(Object.values(authorCounts) as number[]), 0), 5);
-      const monthMap: any = {}; readBooks.forEach(b => {
-        let d = b.dateFinished || b.dateAdded; if (d?.toDate) d = d.toDate(); else if (d?.seconds) d = new Date(d.seconds * 1000); else d = new Date(d);
-        monthMap[`${d.getFullYear()}-${d.getMonth()}`] = true;
-      });
-      let streak = 0; let checkDate = new Date(); if (!monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) checkDate.setMonth(checkDate.getMonth() - 1);
-      for (let i = 0; i < 36; i++) { if (monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) { streak++; checkDate.setMonth(checkDate.getMonth() - 1); } else break; }
-      prog['consistent_reader'] = Math.min(streak, 3);
-      prog['half_year_streak'] = Math.min(streak, 6);
-      prog['year_streak'] = Math.min(streak, 12);
-      setLiveProgress(prog); setLoading(false);
+      const books = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Book));
+      setAllBooks(books);
     });
-    return () => { unsubscribeAch(); unsubscribeBooks(); };
+    const qNotes = query(collection(db, 'notes'), where('userId', '==', user.uid));
+    const unsubscribeNotes = onSnapshot(qNotes, (snapshot) => {
+      setNotesCount(snapshot.size);
+    });
+    const unsubscribeUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        setYearlyGoal(docSnap.data().readingGoal || 0);
+      }
+      setLoading(false);
+    });
+    return () => { unsubscribeAch(); unsubscribeBooks(); unsubscribeNotes(); unsubscribeUser(); };
   }, [user, backfillAchievements]);
+
+  const liveProgress = useMemo(() => {
+    const prog: any = {};
+    const readBooks = allBooks.filter(b => b.status === 'read');
+    const toReadCount = allBooks.filter(b => b.status === 'toread').length;
+
+    prog['quick_start'] = Math.min(allBooks.length, 3);
+    prog['indecisive'] = Math.min(toReadCount, 3);
+    prog['cant_make_up_mind'] = Math.min(toReadCount, 5);
+    prog['the_archivist'] = Math.min(toReadCount, 10);
+    prog['double_feature'] = Math.min(new Set(allBooks.filter(b => b.status === 'reading').map(b => b.author)).size, 2);
+    const uniqueAuthorsCount = new Set(readBooks.map(b => b.author)).size;
+    prog['the_polymath'] = Math.min(uniqueAuthorsCount, 5);
+    prog['variety_king'] = Math.min(uniqueAuthorsCount, 10);
+
+    const ratedCount = readBooks.filter(b => (b.rating && b.rating > 0) || b.review === 'good' || b.review === 'bad').length;
+    prog['first_opinion'] = Math.min(ratedCount, 1);
+    prog['the_critic'] = Math.min(ratedCount, 10);
+    prog['super_critic'] = Math.min(ratedCount, 25);
+
+    const now = new Date();
+    const thisMonthCount = readBooks.filter(b => {
+      let d = b.dateFinished || b.dateAdded;
+      if (d?.toDate) d = d.toDate();
+      else if (d?.seconds) d = new Date(d.seconds * 1000);
+      else d = new Date(d);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+    prog['speedy_reader'] = Math.min(thisMonthCount, 5);
+    prog['speed_demon'] = Math.min(thisMonthCount, 10);
+    prog['speed_god'] = Math.min(thisMonthCount, 30);
+
+    const authorCounts: any = {};
+    readBooks.forEach(b => authorCounts[b.author] = (authorCounts[b.author] || 0) + 1);
+    prog['author_bestie'] = Math.min(Math.max(...(Object.values(authorCounts) as number[]), 0), 5);
+
+    const monthMap: any = {};
+    readBooks.forEach(b => {
+      let d = b.dateFinished || b.dateAdded;
+      if (d?.toDate) d = d.toDate();
+      else if (d?.seconds) d = new Date(d.seconds * 1000);
+      else d = new Date(d);
+      monthMap[`${d.getFullYear()}-${d.getMonth()}`] = true;
+    });
+    let streak = 0;
+    let checkDate = new Date();
+    if (!monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) checkDate.setMonth(checkDate.getMonth() - 1);
+    for (let i = 0; i < 36; i++) {
+      if (monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) {
+        streak++;
+        checkDate.setMonth(checkDate.getMonth() - 1);
+      } else break;
+    }
+    prog['consistent_reader'] = Math.min(streak, 3);
+    prog['half_year_streak'] = Math.min(streak, 6);
+    prog['year_streak'] = Math.min(streak, 12);
+
+    // new achievements
+    prog['first_note'] = Math.min(notesCount, 1);
+    prog['deep_thinker'] = Math.min(notesCount, 10);
+    prog['goal_setter'] = yearlyGoal > 0 ? 1 : 0;
+
+    const uniqueGenresCount = new Set(readBooks.map(b => b.genre?.trim()?.toLowerCase()).filter((g): g is string => !!g)).size;
+    prog['genre_explorer'] = Math.min(uniqueGenresCount, 3);
+    prog['renaissance_reader'] = Math.min(uniqueGenresCount, 5);
+    prog['multitasker_reader'] = Math.min(allBooks.filter(b => b.status === 'reading').length, 3);
+
+    const hasFiveStar = readBooks.some(b => b.rating === 5) ? 1 : 0;
+    prog['masterpiece_finder'] = hasFiveStar;
+    const hasOneStar = readBooks.some(b => b.rating === 1) ? 1 : 0;
+    prog['honest_critic'] = hasOneStar;
+
+    const isDevoured = (b: Book) => {
+      if (!b.dateStartedReading || !b.dateFinished) return false;
+      let start = b.dateStartedReading;
+      let finish = b.dateFinished;
+      if (start.toDate) start = start.toDate(); else start = new Date(start);
+      if (finish.toDate) finish = finish.toDate(); else finish = new Date(finish);
+      const diffMs = finish.getTime() - start.getTime();
+      return diffMs > 0 && diffMs <= 48 * 60 * 60 * 1000;
+    };
+    prog['book_devourer'] = readBooks.some(isDevoured) ? 1 : 0;
+
+    const isBlitzed = (b: Book) => {
+      if (!b.dateStartedReading || !b.dateFinished) return false;
+      let start = b.dateStartedReading;
+      let finish = b.dateFinished;
+      if (start.toDate) start = start.toDate(); else start = new Date(start);
+      if (finish.toDate) finish = finish.toDate(); else finish = new Date(finish);
+      const diffMs = finish.getTime() - start.getTime();
+      return diffMs > 0 && diffMs <= 24 * 60 * 60 * 1000;
+    };
+    prog['book_blitzer'] = readBooks.some(isBlitzed) ? 1 : 0;
+    prog['book_collector'] = Math.min(allBooks.length, 50);
+
+    const rCount = readBooks.length;
+    prog['bronze_milestone'] = Math.min(rCount, 10);
+    prog['silver_milestone'] = Math.min(rCount, 25);
+    prog['gold_milestone'] = Math.min(rCount, 50);
+    prog['diamond_milestone'] = Math.min(rCount, 100);
+
+    const hasLunch = readBooks.some(b => {
+      let d = b.dateFinished || b.dateAdded;
+      if (!d) return false;
+      if (d.toDate) d = d.toDate(); else if (d.seconds) d = new Date(d.seconds * 1000); else d = new Date(d);
+      const hour = d.getHours();
+      return hour >= 12 && hour < 14;
+    });
+    prog['lunch_reader'] = hasLunch ? 1 : 0;
+
+    const hasMidnight = readBooks.some(b => {
+      let d = b.dateFinished || b.dateAdded;
+      if (!d) return false;
+      if (d.toDate) d = d.toDate(); else if (d.seconds) d = new Date(d.seconds * 1000); else d = new Date(d);
+      const hour = d.getHours();
+      return hour >= 0 && hour < 4;
+    });
+    prog['midnight_reader'] = hasMidnight ? 1 : 0;
+
+    // new note progress
+    prog['annotator_notes'] = Math.min(notesCount, 5);
+    prog['chronicler'] = Math.min(notesCount, 25);
+
+    // new rating progress
+    const currentRatings = readBooks.map(b => b.rating).filter((r): r is number => typeof r === 'number' && r > 0);
+    const hasCurrent1 = currentRatings.includes(1);
+    const hasCurrent3 = currentRatings.includes(3);
+    const hasCurrent5 = currentRatings.includes(5);
+    let criticScore = 0;
+    if (hasCurrent1) criticScore++;
+    if (hasCurrent3) criticScore++;
+    if (hasCurrent5) criticScore++;
+    prog['balanced_critic'] = criticScore;
+
+    const fiveStarCount = readBooks.filter(b => b.rating === 5).length;
+    prog['generous_soul'] = Math.min(fiveStarCount, 5);
+
+    // perfect balance
+    const toReadC = allBooks.filter(b => b.status === 'toread').length;
+    const readingC = allBooks.filter(b => b.status === 'reading').length;
+    const readC = readBooks.length;
+    prog['perfect_balance'] = (toReadC === 5 && readingC === 5 && readC === 5) ? 1 : 0;
+
+    // eclectic reader
+    prog['eclectic_reader'] = Math.min(uniqueGenresCount, 10);
+
+    return prog;
+  }, [allBooks, notesCount, yearlyGoal]);
 
   const achievements: Achievement[] = ACHIEVEMENT_DEFINITIONS
     .filter(def => def.id !== 'godmode' || isGodModeUser)
