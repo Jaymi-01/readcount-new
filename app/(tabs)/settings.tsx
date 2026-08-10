@@ -24,7 +24,6 @@ export default function SettingsScreen() {
   const [readingGoal, setReadingGoal] = useState(0);
   const [newGoal, setNewGoal] = useState('');
   const [loading, setLoading] = useState(true);
-  const [lastUsernameChange, setLastUsernameChange] = useState<Timestamp | null>(null);
 
   // Modals
   const [showNameModal, setShowNameModal] = useState(false);
@@ -50,21 +49,23 @@ export default function SettingsScreen() {
   }, []);
 
   useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user) { setLoading(false); return; }
+      try {
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setUsername(data.username || user.displayName || '');
+          setReadingGoal(data.readingGoal || 0);
+        } else { setUsername(user.displayName || ''); }
+      } catch {
+        Toast.show({ type: 'error', text1: 'Error' });
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchUserData();
   }, [user]);
-
-  const fetchUserData = async () => {
-    if (!user) { setLoading(false); return; }
-    try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      if (userDoc.exists()) {
-        const data = userDoc.data();
-        setUsername(data.username || user.displayName || '');
-        setReadingGoal(data.readingGoal || 0);
-        setLastUsernameChange(data.lastUsernameChange || null);
-      } else { setUsername(user.displayName || ''); }
-    } catch (error) { Toast.show({ type: 'error', text1: 'Error' }); } finally { setLoading(false); }
-  };
 
   const handleUpdateUsername = async () => {
     if (!user) return;
@@ -74,7 +75,7 @@ export default function SettingsScreen() {
       await updateProfile(user, { displayName: newUsername });
       await updateDoc(doc(db, 'users', user.uid), { username: newUsername, lastUsernameChange: Timestamp.now() });
       setUsername(newUsername); setShowNameModal(false); Toast.show({ type: 'success', text1: 'Updated' });
-    } catch (e: any) { Toast.show({ type: 'error', text1: 'Failed' }); } finally { setModalLoading(false); }
+    } catch { Toast.show({ type: 'error', text1: 'Failed' }); } finally { setModalLoading(false); }
   };
 
   const handleUpdateGoal = async () => {
@@ -85,7 +86,7 @@ export default function SettingsScreen() {
     try {
       await updateDoc(doc(db, 'users', user.uid), { readingGoal: goalNum });
       setReadingGoal(goalNum); setShowGoalModal(false); Toast.show({ type: 'success', text1: 'Updated' });
-    } catch (e: any) { Toast.show({ type: 'error', text1: 'Failed' }); } finally { setModalLoading(false); }
+    } catch { Toast.show({ type: 'error', text1: 'Failed' }); } finally { setModalLoading(false); }
   };
 
   const handleSendReport = async () => {
@@ -95,7 +96,7 @@ export default function SettingsScreen() {
     try {
       await addDoc(collection(db, 'reports'), { userId: user.uid, userEmail: user.email, type: reportType, description: reportDesc, status: 'pending', createdAt: Timestamp.now(), platform: Platform.OS });
       setShowReportModal(false); setReportDesc(''); Toast.show({ type: 'success', text1: 'Sent' });
-    } catch (e: any) { Toast.show({ type: 'error', text1: 'Error' }); } finally { setModalLoading(false); }
+    } catch { Toast.show({ type: 'error', text1: 'Error' }); } finally { setModalLoading(false); }
   };
 
   const handleLogout = async () => { try { await signOut(auth); router.replace('/auth'); } catch (e) { console.error(e); } };
