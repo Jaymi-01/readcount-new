@@ -3,13 +3,12 @@ import { StyleSheet, Text, View, ScrollView, ActivityIndicator, Platform, Status
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, onSnapshot, query, where, getDocs, doc, setDoc, getDoc, Timestamp, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, getDocs, doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { DoodleBackground } from '../../components/DoodleBackground';
 import { useTheme } from '../../context/ThemeContext';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSequence } from 'react-native-reanimated';
-import Toast from 'react-native-toast-message';
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSequence } from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -92,7 +91,7 @@ function TrophyItem({ item, colors, onDetails, isGodModeUser }: { item: Achievem
     if (item.unlocked) {
       glowOpacity.value = withRepeat(withSequence(withTiming(0.8, { duration: 1500 }), withTiming(0.4, { duration: 1500 })), -1, true);
     }
-  }, [item.unlocked]);
+  }, [item.unlocked, glowOpacity]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -153,7 +152,7 @@ export default function AchievementsScreen() {
     return unsubscribe;
   }, []);
 
-  const backfillAchievements = async () => {
+  const backfillAchievements = useCallback(async () => {
     if (!user) return;
     try {
       const qAll = query(collection(db, 'books'), where('userId', '==', user.uid));
@@ -283,7 +282,7 @@ export default function AchievementsScreen() {
         }
       }
     } catch (e) { console.error("Backfill error:", e); }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -299,7 +298,6 @@ export default function AchievementsScreen() {
       const allBooks = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Book));
       const readBooks = allBooks.filter(b => b.status === 'read');
       const toReadCount = allBooks.filter(b => b.status === 'toread').length;
-      const readingCount = allBooks.filter(b => b.status === 'reading').length;
       const prog: any = {};
       prog['quick_start'] = Math.min(allBooks.length, 3);
       prog['indecisive'] = Math.min(toReadCount, 3); prog['cant_make_up_mind'] = Math.min(toReadCount, 5); prog['the_archivist'] = Math.min(toReadCount, 10);
@@ -329,7 +327,7 @@ export default function AchievementsScreen() {
       setLiveProgress(prog); setLoading(false);
     });
     return () => { unsubscribeAch(); unsubscribeBooks(); };
-  }, [user]);
+  }, [user, backfillAchievements]);
 
   const achievements: Achievement[] = ACHIEVEMENT_DEFINITIONS
     .filter(def => def.id !== 'godmode' || isGodModeUser)
