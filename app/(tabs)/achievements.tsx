@@ -212,13 +212,15 @@ export default function AchievementsScreen() {
         toUnlock['quick_start'] = { date: thirdBook?.dateAdded || Timestamp.now() };
       }
       
+      const userData = userDoc.data();
+      const startYear = userData?.dateAdded?.toDate ? userData.dateAdded.toDate().getFullYear() : 2025;
       const yearlyCounts: any = {};
       readBooks.forEach(b => { const y = b.processedDate.getFullYear(); yearlyCounts[y] = (yearlyCounts[y] || 0) + 1; });
       let finisherStreak = 0; let lastGoalReachedDate = null;
       const currentYear = new Date().getFullYear();
       Object.entries(yearlyCounts).forEach(([year, count]: any) => {
         const y = parseInt(year);
-        const goal = y === currentYear ? readingGoal : 15;
+        const goal = userData?.readingGoals?.[year] ?? (year === startYear.toString() ? (readingGoal || 15) : 15);
         if (goal > 0 && count >= goal) { finisherStreak++; const lastBook = readBooks.filter(b => b.processedDate.getFullYear() === y).pop(); if (lastBook) lastGoalReachedDate = Timestamp.fromDate(lastBook.processedDate); }
       });
       if (finisherStreak > 0 && lastGoalReachedDate) toUnlock['the_finisher'] = { date: lastGoalReachedDate, count: finisherStreak };
@@ -501,7 +503,11 @@ export default function AchievementsScreen() {
     });
     const unsubscribeUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
       if (docSnap.exists()) {
-        setYearlyGoal(docSnap.data().readingGoal || 0);
+        const data = docSnap.data();
+        const startYear = data.dateAdded?.toDate ? data.dateAdded.toDate().getFullYear() : 2025;
+        const currentYearStr = new Date().getFullYear().toString();
+        const goalForYear = data.readingGoals?.[currentYearStr] ?? (currentYearStr === startYear.toString() ? (data.readingGoal ?? 0) : 0);
+        setYearlyGoal(goalForYear);
       }
       setLoading(false);
     });
