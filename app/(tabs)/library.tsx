@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, 
   ActivityIndicator, Platform, StatusBar, Dimensions, ScrollView,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback, Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,6 +45,7 @@ interface Book {
   dateAdded: any;
   dateFinished?: any;
   dateStartedReading?: any;
+  coverUrl?: string;
   processedDate: Date;
 }
 
@@ -70,6 +71,12 @@ export default function LibraryScreen() {
   const [genre, setGenre] = useState('');
   const [status, setStatus] = useState<BookStatus>('reading');
   const [rating, setRating] = useState(0);
+  const [coverUrl, setCoverUrl] = useState('');
+
+  // Google Books search states
+  const [apiQuery, setApiQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearchingApi, setIsSearchingApi] = useState(false);
 
   // Delete Confirmation State
   const [bookToDelete, setBookToDelete] = useState<string | null>(null);
@@ -148,6 +155,7 @@ export default function LibraryScreen() {
         genre: genre?.trim().toUpperCase(), 
         status, 
         rating, 
+        coverUrl,
         userId: user?.uid 
       };
       if (editingBook) {
@@ -179,8 +187,55 @@ export default function LibraryScreen() {
     }
   };
 
+  const handleSearchGoogleBooks = async () => {
+    if (!apiQuery.trim()) return;
+    setIsSearchingApi(true);
+    try {
+      const response = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(apiQuery)}&limit=5`);
+      const data = await response.json();
+      if (data.docs && data.docs.length > 0) {
+        const results = data.docs.map((doc: any) => {
+          let genreName = '';
+          if (doc.subject && doc.subject.length > 0) {
+            genreName = doc.subject[0];
+          }
+          let cover = null;
+          if (doc.cover_i) {
+            cover = `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`;
+          } else if (doc.cover_edition_key) {
+            cover = `https://covers.openlibrary.org/b/olid/${doc.cover_edition_key}-M.jpg`;
+          }
+          return {
+            title: doc.title || '',
+            author: doc.author_name ? doc.author_name.join(', ') : 'Unknown Author',
+            genre: genreName,
+            cover: cover,
+          };
+        });
+        setSearchResults(results);
+      } else {
+        setSearchResults([]);
+        Toast.show({ type: 'info', text1: 'No books found' });
+      }
+    } catch (e) {
+      console.error(e);
+      Toast.show({ type: 'error', text1: 'Error searching online library' });
+    } finally {
+      setIsSearchingApi(false);
+    }
+  };
+
+  const handleSelectApiBook = (book: any) => {
+    setTitle(book.title);
+    setAuthor(book.author);
+    setGenre(book.genre ? book.genre.toUpperCase() : '');
+    setCoverUrl(book.cover || '');
+    setSearchResults([]);
+    setApiQuery('');
+  };
+
   const resetForm = () => {
-    setEditingBook(null); setTitle(''); setAuthor(''); setGenre(''); setStatus(filterStatus); setRating(0);
+    setEditingBook(null); setTitle(''); setAuthor(''); setGenre(''); setStatus(filterStatus); setRating(0); setCoverUrl(''); setApiQuery(''); setSearchResults([]);
   };
 
   const openEditModal = (book: Book) => {
@@ -190,6 +245,7 @@ export default function LibraryScreen() {
     setGenre(book.genre || '');
     setStatus(book.status); 
     setRating(book.rating || 0); 
+    setCoverUrl(book.coverUrl || '');
     setModalVisible(true);
   };
 
@@ -248,11 +304,20 @@ export default function LibraryScreen() {
       >
         <View style={styles.coverContainer}>
           <TouchableWithoutFeedback onPress={closeExpandedMenu}>
-            <View style={[styles.bookCover, { backgroundColor: coverColor }]}>
-              <View style={styles.coverTexture} />
-              <Text style={styles.coverTitle} numberOfLines={3}>{item.title}</Text>
-              <View style={styles.coverDivider} />
-              <Text style={styles.coverAuthor} numberOfLines={1}>{item.author}</Text>
+            <View style={[styles.bookCover, { backgroundColor: coverColor, overflow: 'hidden' }]}>
+              {item.coverUrl ? (
+                <>
+                  <Image source={{ uri: item.coverUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                  <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.15)' }]} />
+                </>
+              ) : (
+                <>
+                  <View style={styles.coverTexture} />
+                  <Text style={styles.coverTitle} numberOfLines={3}>{item.title}</Text>
+                  <View style={styles.coverDivider} />
+                  <Text style={styles.coverAuthor} numberOfLines={1}>{item.author}</Text>
+                </>
+              )}
               <View style={styles.coverFooter}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
@@ -455,6 +520,70 @@ export default function LibraryScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.textDark }]}>{editingBook ? 'Edit Book' : 'New Book'}</Text><TouchableOpacity onPress={() => setModalVisible(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View>
             <ScrollView showsVerticalScrollIndicator={false}>
+              {!editingBook && (
+                <View style={styles.apiSearchContainer}>
+                  <Text style={[styles.inputLabel, { color: colors.textLight, marginBottom: 8 }]}>Search online (Google Books)</Text>
+                  <View style={styles.apiSearchRow}>
+                    <TextInput
+                      style={[styles.apiInput, { color: colors.textDark, borderColor: colors.border }]}
+                      placeholder="Title, author, or ISBN..."
+                      placeholderTextColor={colors.textLight}
+                      value={apiQuery}
+                      onChangeText={setApiQuery}
+                      onSubmitEditing={handleSearchGoogleBooks}
+                    />
+                    <TouchableOpacity
+                      style={[styles.apiSearchBtn, { backgroundColor: colors.primary }]}
+                      onPress={handleSearchGoogleBooks}
+                      disabled={isSearchingApi}
+                    >
+                      {isSearchingApi ? (
+                        <ActivityIndicator size="small" color="white" />
+                      ) : (
+                        <Ionicons name="search" size={18} color="white" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  {searchResults.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.searchResultsScroll} contentContainerStyle={{ gap: 12, paddingVertical: 8 }}>
+                      {searchResults.map((b, i) => (
+                        <TouchableOpacity
+                          key={i}
+                          style={[styles.apiResultCard, { backgroundColor: colors.border + '15', borderColor: colors.border }]}
+                          onPress={() => handleSelectApiBook(b)}
+                        >
+                          {b.cover ? (
+                            <Image source={{ uri: b.cover }} style={styles.apiResultCover} />
+                          ) : (
+                            <View style={[styles.apiResultCoverPlaceholder, { backgroundColor: colors.border + '30' }]}>
+                              <Ionicons name="book" size={18} color={colors.textLight} />
+                            </View>
+                          )}
+                          <Text style={[styles.apiResultTitle, { color: colors.textDark }]} numberOfLines={1}>
+                            {b.title}
+                          </Text>
+                          <Text style={[styles.apiResultAuthor, { color: colors.textLight }]} numberOfLines={1}>
+                            {b.author}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
+                  <View style={[styles.dividerLine, { backgroundColor: colors.border + '40', height: 1, marginVertical: 16 }]} />
+                </View>
+              )}
+
+              {coverUrl ? (
+                <View style={styles.coverPreviewRow}>
+                  <Image source={{ uri: coverUrl }} style={styles.coverPreview} />
+                  <TouchableOpacity style={styles.removeCoverBtn} onPress={() => setCoverUrl('')}>
+                    <Ionicons name="trash-outline" size={16} color={colors.danger || '#ef4444'} />
+                    <Text style={[styles.removeCoverText, { color: colors.danger || '#ef4444' }]}>Remove cover</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
               <Text style={styles.inputLabel}>Title</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={title} onChangeText={setTitle} />
               <Text style={styles.inputLabel}>Author</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={author} onChangeText={setAuthor} />
               <Text style={styles.inputLabel}>Genre</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={genre} onChangeText={(text) => setGenre(text.toUpperCase())} placeholder="E.G. FANTASY, SCI-FI" placeholderTextColor={colors.textLight} autoCapitalize="characters" />
@@ -534,6 +663,21 @@ const styles = StyleSheet.create({
   modalContent: { width: '100%', maxWidth: 400, borderRadius: 28, padding: 24, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, width: '100%' },
   modalTitle: { fontSize: 24, fontWeight: '900' },
+  apiSearchContainer: { marginBottom: 8 },
+  apiSearchRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  apiInput: { flex: 1, height: 48, borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, fontSize: 14, fontWeight: '600' },
+  apiSearchBtn: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  searchResultsScroll: { marginTop: 12 },
+  apiResultCard: { width: 90, padding: 8, borderRadius: 12, borderWidth: 1, alignItems: 'center', marginRight: 4 },
+  apiResultCover: { width: 74, height: 110, borderRadius: 8, marginBottom: 6 },
+  apiResultCoverPlaceholder: { width: 74, height: 110, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
+  apiResultTitle: { fontSize: 9, fontWeight: '800', width: '100%', textAlign: 'center' },
+  apiResultAuthor: { fontSize: 8, fontWeight: '600', width: '100%', textAlign: 'center', marginTop: 1 },
+  dividerLine: { width: '100%', height: 1 },
+  coverPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16, padding: 12, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.03)' },
+  coverPreview: { width: 48, height: 72, borderRadius: 8 },
+  removeCoverBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  removeCoverText: { fontSize: 12, fontWeight: '700' },
   yearOption: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', padding: 18, borderRadius: 16, marginBottom: 8 },
   yearOptionText: { fontSize: 16, fontWeight: 'bold' },
   yearOptionCount: { fontSize: 14, fontWeight: '600' },
