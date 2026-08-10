@@ -45,7 +45,7 @@ export default function RootLayout() {
     };
 
     checkUpdateStatus();
-  }, [currentlyRunning.updateId]);
+  }, [currentlyRunning.updateId, currentlyRunning.manifest]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
