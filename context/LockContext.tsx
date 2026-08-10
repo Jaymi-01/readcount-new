@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, darkColors } from '../constants/colors';
 import { auth, db } from '../firebaseConfig';
 import { useTheme } from './ThemeContext';
+import { DoodleBackground } from '../components/DoodleBackground';
 
 const SECURE_STORE_KEY = 'app_passlock_pin';
 const ASYNC_STORAGE_TIMEOUT_KEY = 'app_passlock_timeout';
@@ -60,7 +61,7 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         return await AsyncStorage.getItem(FALLBACK_PIN_KEY);
       }
-    } catch (e) {
+    } catch {
       return null;
     }
   };
@@ -273,8 +274,6 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-import { DoodleBackground } from '../components/DoodleBackground';
-
 const LockScreen: React.FC<{ 
   onUnlock: (pin: string) => Promise<boolean>, 
   colors: any,
@@ -288,7 +287,7 @@ const LockScreen: React.FC<{
     if (biometricEnabled) {
       onBiometricAuth();
     }
-  }, []);
+  }, [biometricEnabled, onBiometricAuth]);
 
   const handlePress = (num: string) => {
     if (pin.length < 4) {
