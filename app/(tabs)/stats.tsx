@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { collection, doc, getDoc, onSnapshot, query, where, setDoc, Timestamp } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View, TouchableWithoutFeedback } from 'react-native';
+import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, FadeInDown, ZoomIn, Easing, SharedValue } from 'react-native-reanimated';
 import { COLORS, darkColors } from '../../constants/colors';
@@ -94,52 +94,7 @@ function ScrambleText({ text, style }: { text: string, style?: any }) {
   return <Text style={style} numberOfLines={1} adjustsFontSizeToFit>{display}</Text>;
 }
 
-function ScrollingMonths({ targetMonth }: { targetMonth: string }) {
-  const translateY = useSharedValue(0);
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const ITEM_HEIGHT = 80;
-  
-  const safeTarget = targetMonth === 'NONE' || !targetMonth ? 'JAN' : targetMonth;
-  
-  // Create a long list to scroll through
-  const extendedMonths = [...months, ...months, ...months, ...months, ...months];
-  // Find target in the 4th set
-  const finalIndex = (12 * 3) + months.findIndex(m => m.toUpperCase() === safeTarget);
 
-  useEffect(() => {
-    translateY.value = withTiming(-(finalIndex * ITEM_HEIGHT) + (SCREEN_HEIGHT / 2) - ITEM_HEIGHT, { 
-      duration: 3500,
-      easing: Easing.bezier(0.25, 1, 0.5, 1) // Decelerate smoothly
-    });
-  }, [finalIndex, translateY]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }]
-  }));
-
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      <Animated.View style={animatedStyle}>
-        {extendedMonths.map((m, i) => {
-          const isTarget = i === finalIndex;
-          return (
-            <View key={i} style={{ height: ITEM_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={{ 
-                color: 'white', 
-                fontSize: isTarget ? 64 : 40, 
-                fontWeight: '900', 
-                opacity: isTarget ? 1 : 0.2,
-                textTransform: 'uppercase'
-              }}>
-                {m}
-              </Text>
-            </View>
-          );
-        })}
-      </Animated.View>
-    </View>
-  );
-}
 
 // --- SUB-COMPONENT FOR CONFETTI ---
 function ConfettiPiece({ index }: { index: number }) {
@@ -231,6 +186,48 @@ function BookStackGraphic({ count }: { count: number }) {
         />
       ))}
     </View>
+  );
+}
+
+function FlippingCalendarMonth({ targetMonth }: { targetMonth: string }) {
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const [displayMonth, setDisplayMonth] = useState('JAN');
+  const safeTarget = targetMonth ? targetMonth.toUpperCase() : 'JAN';
+  const targetIndex = months.indexOf(safeTarget) !== -1 ? months.indexOf(safeTarget) : 0;
+
+  useEffect(() => {
+    let currentIdx = 0;
+    const totalFlips = targetIndex;
+    let flipsCount = 0;
+    let timeoutId: any;
+
+    if (totalFlips === 0) {
+      setDisplayMonth(safeTarget);
+      return;
+    }
+
+    const flip = () => {
+      currentIdx = (currentIdx + 1) % 12;
+      setDisplayMonth(months[currentIdx]);
+      flipsCount++;
+
+      if (flipsCount < totalFlips) {
+        // Decelerate: delay gets longer as flipsCount approaches totalFlips
+        const delay = 80 + Math.pow(flipsCount / totalFlips, 2) * 250;
+        timeoutId = setTimeout(flip, delay);
+      } else {
+        setDisplayMonth(safeTarget);
+      }
+    };
+
+    timeoutId = setTimeout(flip, 80);
+    return () => clearTimeout(timeoutId);
+  }, [targetMonth]);
+
+  return (
+    <Animated.Text style={styles.calendarMonth}>
+      {displayMonth}
+    </Animated.Text>
   );
 }
 
@@ -379,17 +376,30 @@ export default function StatsScreen() {
       else if (count > 0) setPersonality({ title: 'The Casual Voyager', icon: 'boat', desc: 'Enjoying the journey, one page at a time.' });
       else setPersonality({ title: 'The Newcomer', icon: 'egg', desc: 'Your reading adventure is just beginning!' });
       
-      // Calculate current streak
+      // Calculate current streak based on selected year
+      const streakBooks = allReadBooks.filter(d => selectedYear === 'All' || d.getFullYear() === selectedYear);
       const monthMap: any = {};
-      allReadBooks.forEach(d => {
+      streakBooks.forEach(d => {
         monthMap[`${d.getFullYear()}-${d.getMonth()}`] = true;
       });
+
       let streak = 0;
       let checkDate = new Date();
+      if (selectedYear !== 'All' && selectedYear !== new Date().getFullYear()) {
+        // For a past year, start checking from Dec 31 of that year
+        checkDate = new Date(selectedYear, 11, 15);
+      }
+
       if (!monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) {
         checkDate.setMonth(checkDate.getMonth() - 1);
       }
-      for (let i = 0; i < 36; i++) {
+
+      const maxLimit = selectedYear === 'All' ? 36 : 12;
+      for (let i = 0; i < maxLimit; i++) {
+        if (selectedYear !== 'All' && checkDate.getFullYear() !== selectedYear) {
+          break;
+        }
+
         if (monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) {
           streak++;
           checkDate.setMonth(checkDate.getMonth() - 1);
@@ -438,13 +448,7 @@ export default function StatsScreen() {
     } else {
       storyProgress.value = 0;
     }
-  }, [wrappedStep]);
-
-  const advanceWrapped = () => {
-    if (wrappedStep > 0 && wrappedStep < 5) {
-      setWrappedStep(prev => prev + 1);
-    }
-  };
+  }, [wrappedStep, storyProgress]);
 
   if (loading) {
     return (
@@ -658,7 +662,7 @@ export default function StatsScreen() {
               <View style={styles.storyBadge}><Text style={styles.storyBadgeText}>PEAK MONTH</Text></View>
               <Animated.View entering={ZoomIn.delay(200).duration(800)} style={styles.calendarPage}>
                 <View style={styles.calendarHeader}><Text style={styles.calendarHeaderText}>CALENDAR</Text></View>
-                <Text style={styles.calendarMonth}>{topMonth.toUpperCase()}</Text>
+                <FlippingCalendarMonth targetMonth={topMonth} />
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 4 }}>
                   <Ionicons name="flame" size={24} color="#f59e0b" />
                   <Text style={styles.calendarBooksCount}>Peak Activity</Text>
