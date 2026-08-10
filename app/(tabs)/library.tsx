@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, 
-  ActivityIndicator, Platform, StatusBar, Dimensions, ScrollView, Alert,
+  ActivityIndicator, Platform, StatusBar, Dimensions, ScrollView,
   TouchableWithoutFeedback
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,12 +11,12 @@ import { auth, db } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
   collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, 
-  doc, Timestamp, getDoc, setDoc, getDocs 
+  doc, Timestamp 
 } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../../context/ThemeContext';
 import Toast from 'react-native-toast-message';
-import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { DoodleBackground } from '../../components/DoodleBackground';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -27,7 +27,7 @@ const TOTAL_GAP = GAP * (NUM_COLUMNS - 1);
 const HORIZONTAL_PADDING = IS_TABLET ? 40 : 24;
 const COLUMN_WIDTH = (SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - TOTAL_GAP) / NUM_COLUMNS;
 
-const capitalize = (str: string) => {
+const capitalize = (str?: string) => {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 };
@@ -205,7 +205,7 @@ export default function LibraryScreen() {
       Toast.show({ type: 'success', text1: 'Deleted' });
       setShowDeleteModal(false);
       setBookToDelete(null);
-    } catch (e: any) {
+    } catch {
       Toast.show({ type: 'error', text1: 'Delete Failed' });
     }
   };
