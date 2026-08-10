@@ -1,20 +1,20 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, 
-  ActivityIndicator, Platform, StatusBar, Dimensions, ScrollView, KeyboardAvoidingView, Keyboard
-} from 'react-native';
+   StyleSheet, Text, View, TouchableOpacity, FlatList, Modal, TextInput, 
+   ActivityIndicator, Platform, StatusBar, Dimensions, ScrollView, KeyboardAvoidingView
+ } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { auth, db } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
   collection, query, where, onSnapshot, addDoc, updateDoc, deleteDoc, 
-  doc, Timestamp, orderBy 
+  doc, Timestamp 
 } from 'firebase/firestore';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../../context/ThemeContext';
 import Toast from 'react-native-toast-message';
-import Animated, { FadeInDown, Layout, FadeIn, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 import { DoodleBackground } from '../../components/DoodleBackground';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -126,7 +126,7 @@ export default function NotesScreen() {
       }
       setEditorVisible(false);
       resetForm();
-    } catch (e: any) {
+    } catch {
       Toast.show({ type: 'error', text1: 'Error saving note' });
     } finally {
       setIsSaving(false);
@@ -161,7 +161,7 @@ export default function NotesScreen() {
       await deleteDoc(doc(db, 'notes', noteToDelete));
       setShowDeleteModal(false);
       setNoteToDelete(null);
-    } catch (e: any) {
+    } catch {
       Toast.show({ type: 'error', text1: 'Delete failed' });
     }
   };
