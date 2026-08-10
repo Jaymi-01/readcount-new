@@ -56,7 +56,10 @@ export default function SettingsScreen() {
         if (userDoc.exists()) {
           const data = userDoc.data();
           setUsername(data.username || user.displayName || '');
-          setReadingGoal(data.readingGoal || 0);
+          const startYear = data.dateAdded?.toDate ? data.dateAdded.toDate().getFullYear() : 2025;
+          const currentYearStr = new Date().getFullYear().toString();
+          const goalForYear = data.readingGoals?.[currentYearStr] ?? (currentYearStr === startYear.toString() ? (data.readingGoal ?? 0) : 0);
+          setReadingGoal(goalForYear);
         } else { setUsername(user.displayName || ''); }
       } catch {
         Toast.show({ type: 'error', text1: 'Error' });
@@ -84,7 +87,10 @@ export default function SettingsScreen() {
     if (isNaN(goalNum) || goalNum < 0) { Toast.show({ type: 'error', text1: 'Invalid Goal' }); return; }
     setModalLoading(true);
     try {
-      await updateDoc(doc(db, 'users', user.uid), { readingGoal: goalNum });
+      const currentYearStr = new Date().getFullYear().toString();
+      await updateDoc(doc(db, 'users', user.uid), { 
+        [`readingGoals.${currentYearStr}`]: goalNum 
+      });
       setReadingGoal(goalNum); setShowGoalModal(false); Toast.show({ type: 'success', text1: 'Updated' });
     } catch { Toast.show({ type: 'error', text1: 'Failed' }); } finally { setModalLoading(false); }
   };
