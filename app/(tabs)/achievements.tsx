@@ -217,7 +217,6 @@ export default function AchievementsScreen() {
       const yearlyCounts: any = {};
       readBooks.forEach(b => { const y = b.processedDate.getFullYear(); yearlyCounts[y] = (yearlyCounts[y] || 0) + 1; });
       let finisherStreak = 0; let lastGoalReachedDate = null;
-      const currentYear = new Date().getFullYear();
       Object.entries(yearlyCounts).forEach(([year, count]: any) => {
         const y = parseInt(year);
         const goal = userData?.readingGoals?.[year] ?? (year === startYear.toString() ? (readingGoal || 15) : 15);
