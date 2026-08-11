@@ -280,6 +280,8 @@ export default function StatsScreen() {
 
   const progressValue = useSharedValue(0);
   const storyProgress = useSharedValue(0);
+  
+  const [hasSeenWrapped, setHasSeenWrapped] = useState(false);
 
   const checkAndUnlockAchievement = useCallback(async (achievementId: string) => {
     if (!user) return;
@@ -308,6 +310,8 @@ export default function StatsScreen() {
         const currentYearStr = selectedYear === 'All' ? new Date().getFullYear().toString() : selectedYear.toString();
         const goalForYear = data.readingGoals?.[currentYearStr] ?? (currentYearStr === startYear.toString() ? (data.readingGoal ?? 0) : 0);
         setYearlyGoal(goalForYear);
+
+        setHasSeenWrapped(data.wrappedSeen?.[currentYearStr] ?? false);
 
         const currentYear = new Date().getFullYear();
         const years: (number | 'All')[] = ['All'];
@@ -437,6 +441,18 @@ export default function StatsScreen() {
   };
 
   useEffect(() => {
+    if (wrappedStep === 5 && user && selectedYear !== 'All') {
+      const currentYearStr = selectedYear.toString();
+      const userRef = doc(db, 'users', user.uid);
+      setDoc(userRef, {
+        wrappedSeen: {
+          [currentYearStr]: true
+        }
+      }, { merge: true }).catch(err => console.error("Error setting wrappedSeen:", err));
+    }
+  }, [wrappedStep, user, selectedYear]);
+
+  useEffect(() => {
     if (wrappedStep > 0 && wrappedStep < 5) {
       storyProgress.value = 0;
       storyProgress.value = withTiming(1, { duration: 7000, easing: Easing.linear });
@@ -458,6 +474,12 @@ export default function StatsScreen() {
   }
 
   const maxCount = Math.max(...monthlyStats.map(s => s.count), 1);
+  const now = new Date();
+  const isYearEnded = selectedYear === 'All' ? true : (
+    selectedYear < now.getFullYear() || (selectedYear === now.getFullYear() && now.getMonth() === 11 && now.getDate() === 31)
+  );
+  
+  const isLocked = selectedYear !== 'All' && (!isYearEnded || !hasSeenWrapped);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -478,7 +500,7 @@ export default function StatsScreen() {
         </View>
 
         {/* Goal Card with percentage and trophy badge */}
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12 }]}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, marginBottom: 16 }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
             <View>
               <Text style={[styles.cardTitle, { color: colors.textLight }]}>{selectedYear === 'All' ? 'LIFETIME TOTAL' : `${selectedYear} GOAL`}</Text>
@@ -500,73 +522,109 @@ export default function StatsScreen() {
           </Text>
         </View>
 
-        {/* Holographic Wrapped Promo Card */}
-        {booksReadThisYear > 0 && selectedYear !== 'All' && (() => {
-          const now = new Date();
-          const isDec31 = now.getMonth() === 11 && now.getDate() === 31;
-          if (selectedYear < now.getFullYear() || (selectedYear === now.getFullYear() && isDec31)) {
-            return (
-              <TouchableOpacity style={[styles.wrappedPromoCard, { backgroundColor: colors.primary }]} onPress={() => setWrappedStep(1)}>
+        {isLocked ? (
+          <View style={{ width: '100%', gap: 16, marginBottom: 16 }}>
+            {!isYearEnded ? (
+              /* Coming Soon locked card */
+              <View style={[styles.lockedCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.lockedIconBg, { backgroundColor: colors.primary + '15' }]}>
+                  <Ionicons name="gift" size={40} color={colors.primary} />
+                </View>
+                <Text style={[styles.lockedTitle, { color: colors.textDark }]}>Your {selectedYear} Wrapped is on its way!</Text>
+                <Text style={[styles.lockedSubtitle, { color: colors.textLight }]}>
+                  Your reading persona, top author, top genre, and active streak will be revealed once your Year-in-Review is ready at the end of the year. Keep reading to build your year!
+                </Text>
+              </View>
+            ) : (
+              /* Ended but not played yet */
+              <View style={{ width: '100%', gap: 16 }}>
+                {booksReadThisYear > 0 && (
+                  <TouchableOpacity style={[styles.wrappedPromoCard, { backgroundColor: colors.primary }]} onPress={() => setWrappedStep(1)}>
+                    <View style={styles.wrappedPromoLeft}>
+                      <Ionicons name="sparkles" size={24} color="white" />
+                      <View style={{ marginLeft: 12 }}>
+                        <Text style={styles.wrappedPromoTitle}>Your {selectedYear} Wrapped is ready!</Text>
+                        <Text style={styles.wrappedPromoSubtitle}>Relive your year in reading review →</Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="white" />
+                  </TouchableOpacity>
+                )}
+
+                <View style={[styles.lockedCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Ionicons name="lock-closed" size={40} color={colors.textLight} style={{ marginBottom: 16 }} />
+                  <Text style={[styles.lockedTitle, { color: colors.textDark, fontSize: 18 }]}>Reading Stats Locked</Text>
+                  <Text style={[styles.lockedSubtitle, { color: colors.textLight }]}>
+                    Watch your {selectedYear} Wrapped story to unlock your detailed reading stats, top author, active streak, and persona!
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        ) : (
+          /* UNLOCKED / LIFETIME */
+          <View style={{ width: '100%' }}>
+            {/* Holographic Replay Option */}
+            {booksReadThisYear > 0 && selectedYear !== 'All' && isYearEnded && (
+              <TouchableOpacity style={[styles.wrappedPromoCard, { backgroundColor: colors.primary, opacity: 0.85, marginBottom: 20 }]} onPress={() => setWrappedStep(1)}>
                 <View style={styles.wrappedPromoLeft}>
-                  <Ionicons name="sparkles" size={24} color="white" />
+                  <Ionicons name="refresh" size={20} color="white" />
                   <View style={{ marginLeft: 12 }}>
-                    <Text style={styles.wrappedPromoTitle}>Your {selectedYear} Wrapped is ready!</Text>
-                    <Text style={styles.wrappedPromoSubtitle}>Relive your year in reading review →</Text>
+                    <Text style={[styles.wrappedPromoTitle, { fontSize: 14 }]}>Replay {selectedYear} Wrapped</Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="white" />
+                <Ionicons name="chevron-forward" size={18} color="white" />
               </TouchableOpacity>
-            );
-          }
-          return null;
-        })()}
+            )}
 
-        {/* Dashboard 2x2 Stats Grid */}
-        <View style={styles.dashboardGrid}>
-          <View style={[styles.dashboardCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.dashboardCardHeader}>
-              <Ionicons name="compass" size={20} color={colors.primary} />
-            </View>
-            <Text style={[styles.dashboardCardValue, { color: colors.textDark }]} numberOfLines={1}>{topGenre}</Text>
-            <Text style={[styles.dashboardCardLabel, { color: colors.textLight }]}>Top Genre</Text>
-          </View>
+            {/* Dashboard 2x2 Stats Grid */}
+            <View style={styles.dashboardGrid}>
+              <View style={[styles.dashboardCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.dashboardCardHeader}>
+                  <Ionicons name="compass" size={20} color={colors.primary} />
+                </View>
+                <Text style={[styles.dashboardCardValue, { color: colors.textDark }]} numberOfLines={1}>{topGenre}</Text>
+                <Text style={[styles.dashboardCardLabel, { color: colors.textLight }]}>Top Genre</Text>
+              </View>
 
-          <View style={[styles.dashboardCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.dashboardCardHeader}>
-              <Ionicons name="person" size={20} color={colors.primary} />
-            </View>
-            <Text style={[styles.dashboardCardValue, { color: colors.textDark }]} numberOfLines={1}>{topAuthor}</Text>
-            <Text style={[styles.dashboardCardLabel, { color: colors.textLight }]}>Top Author</Text>
-          </View>
+              <View style={[styles.dashboardCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.dashboardCardHeader}>
+                  <Ionicons name="person" size={20} color={colors.primary} />
+                </View>
+                <Text style={[styles.dashboardCardValue, { color: colors.textDark }]} numberOfLines={1}>{topAuthor}</Text>
+                <Text style={[styles.dashboardCardLabel, { color: colors.textLight }]}>Top Author</Text>
+              </View>
 
-          <View style={[styles.dashboardCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.dashboardCardHeader}>
-              <Ionicons name="flame" size={20} color="#f59e0b" />
-            </View>
-            <Text style={[styles.dashboardCardValue, { color: colors.textDark }]} numberOfLines={1}>{currentStreak} Months</Text>
-            <Text style={[styles.dashboardCardLabel, { color: colors.textLight }]}>Active Streak</Text>
-          </View>
+              <View style={[styles.dashboardCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.dashboardCardHeader}>
+                  <Ionicons name="flame" size={20} color="#f59e0b" />
+                </View>
+                <Text style={[styles.dashboardCardValue, { color: colors.textDark }]} numberOfLines={1}>{currentStreak} Months</Text>
+                <Text style={[styles.dashboardCardLabel, { color: colors.textLight }]}>Active Streak</Text>
+              </View>
 
-          <View style={[styles.dashboardCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.dashboardCardHeader}>
-              <Ionicons name="library" size={20} color={colors.primary} />
+              <View style={[styles.dashboardCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={styles.dashboardCardHeader}>
+                  <Ionicons name="library" size={20} color={colors.primary} />
+                </View>
+                <Text style={[styles.dashboardCardValue, { color: colors.textDark }]} numberOfLines={1}>{booksReadThisYear} Books</Text>
+                <Text style={[styles.dashboardCardLabel, { color: colors.textLight }]}>Total Read</Text>
+              </View>
             </View>
-            <Text style={[styles.dashboardCardValue, { color: colors.textDark }]} numberOfLines={1}>{booksReadThisYear} Books</Text>
-            <Text style={[styles.dashboardCardLabel, { color: colors.textLight }]}>Total Read</Text>
-          </View>
-        </View>
 
-        {/* Reading Persona Card */}
-        {booksReadThisYear > 0 && (
-          <View style={[styles.personaBanner, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.personaIconContainer, { backgroundColor: colors.primary + '15' }]}>
-              <Ionicons name={personality.icon as any} size={28} color={colors.primary} />
-            </View>
-            <View style={styles.personaInfo}>
-              <Text style={[styles.personaHeaderLabel, { color: colors.textLight }]}>Reading Persona</Text>
-              <Text style={[styles.personaTitle, { color: colors.textDark }]}>{personality.title}</Text>
-              <Text style={[styles.personaDesc, { color: colors.textLight }]}>{personality.desc}</Text>
-            </View>
+            {/* Reading Persona Card */}
+            {booksReadThisYear > 0 && (
+              <View style={[styles.personaBanner, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: 24 }]}>
+                <View style={[styles.personaIconContainer, { backgroundColor: colors.primary + '15' }]}>
+                  <Ionicons name={personality.icon as any} size={28} color={colors.primary} />
+                </View>
+                <View style={styles.personaInfo}>
+                  <Text style={[styles.personaHeaderLabel, { color: colors.textLight }]}>Reading Persona</Text>
+                  <Text style={[styles.personaTitle, { color: colors.textDark }]}>{personality.title}</Text>
+                  <Text style={[styles.personaDesc, { color: colors.textLight }]}>{personality.desc}</Text>
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -868,4 +926,10 @@ const styles = StyleSheet.create({
   genreBubble: { position: 'absolute', justifyContent: 'center', alignItems: 'center', borderWidth: 2, padding: 8 },
   genreBubbleText: { color: 'white', fontSize: 11, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' },
   genreBubbleCount: { color: 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '700', marginTop: 2 },
+  lockedCard: { padding: 32, borderRadius: 24, borderWidth: 1, alignItems: 'center', justifyContent: 'center', minHeight: 280, marginHorizontal: 4 },
+  lockedIconBg: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  lockedTitle: { fontSize: 20, fontWeight: '900', textAlign: 'center', marginBottom: 12, lineHeight: 26 },
+  lockedSubtitle: { fontSize: 13, fontWeight: '500', textAlign: 'center', lineHeight: 22, opacity: 0.8, paddingHorizontal: 8 },
+  teaserStats: { marginTop: 24, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 16, borderStyle: 'dashed', borderWidth: 1.5 },
+  teaserStatsText: { fontSize: 13, fontWeight: '700' },
 });
