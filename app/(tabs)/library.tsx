@@ -32,7 +32,7 @@ const capitalize = (str?: string) => {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 };
 
-type BookStatus = 'reading' | 'toread' | 'read';
+type BookStatus = 'reading' | 'toread' | 'read' | 'dnf';
 
 interface Book {
   id: string;
@@ -49,6 +49,9 @@ interface Book {
   processedDate: Date;
   series?: string;
   seriesOrder?: number;
+  format?: 'physical' | 'ebook' | 'audiobook';
+  dnfReason?: string;
+  dateDnf?: any;
 }
 
 export default function LibraryScreen() {
@@ -76,6 +79,8 @@ export default function LibraryScreen() {
   const [coverUrl, setCoverUrl] = useState('');
   const [series, setSeries] = useState('');
   const [seriesOrder, setSeriesOrder] = useState('');
+  const [format, setFormat] = useState<'physical' | 'ebook' | 'audiobook'>('physical');
+  const [dnfReason, setDnfReason] = useState('');
 
   // Google Books search states
   const [apiQuery, setApiQuery] = useState('');
@@ -123,6 +128,7 @@ export default function LibraryScreen() {
         let date = d.dateAdded; // default fallback
         if (d.status === 'read' && d.dateFinished) date = d.dateFinished;
         else if (d.status === 'reading' && d.dateStartedReading) date = d.dateStartedReading;
+        else if (d.status === 'dnf' && d.dateDnf) date = d.dateDnf;
         else if (d.dateFinished) date = d.dateFinished; // legacy fallback
         
         let processedDate = new Date();
@@ -163,7 +169,9 @@ export default function LibraryScreen() {
         coverUrl,
         userId: user?.uid,
         series: series?.trim() || '',
-        seriesOrder: !isNaN(seriesOrderNum) && seriesOrderNum > 0 ? seriesOrderNum : null
+        seriesOrder: !isNaN(seriesOrderNum) && seriesOrderNum > 0 ? seriesOrderNum : null,
+        format,
+        dnfReason: status === 'dnf' ? dnfReason.trim() : ''
       };
       if (editingBook) {
         // If status changed to 'read' and it wasn't read before, set dateFinished
@@ -174,6 +182,10 @@ export default function LibraryScreen() {
         if (status === 'reading' && editingBook.status !== 'reading') {
           bookData.dateStartedReading = Timestamp.now();
         }
+        // If status changed to 'dnf' and it wasn't dnf before, set dateDnf
+        if (status === 'dnf' && editingBook.status !== 'dnf') {
+          bookData.dateDnf = Timestamp.now();
+        }
         await updateDoc(doc(db, 'books', editingBook.id), bookData);
         Toast.show({ type: 'success', text1: 'Updated' });
       } else {
@@ -183,6 +195,8 @@ export default function LibraryScreen() {
           bookData.dateFinished = now;
         } else if (status === 'reading') {
           bookData.dateStartedReading = now;
+        } else if (status === 'dnf') {
+          bookData.dateDnf = now;
         }
         await addDoc(collection(db, 'books'), bookData);
         Toast.show({ type: 'success', text1: 'Added' });
@@ -245,6 +259,8 @@ export default function LibraryScreen() {
     setEditingBook(null); setTitle(''); setAuthor(''); setGenre(''); setStatus(filterStatus); setRating(0); setCoverUrl(''); setApiQuery(''); setSearchResults([]);
     setSeries('');
     setSeriesOrder('');
+    setFormat('physical');
+    setDnfReason('');
   };
 
   const openEditModal = (book: Book) => {
@@ -257,6 +273,8 @@ export default function LibraryScreen() {
     setCoverUrl(book.coverUrl || '');
     setSeries(book.series || '');
     setSeriesOrder(book.seriesOrder?.toString() || '');
+    setFormat(book.format || 'physical');
+    setDnfReason(book.dnfReason || '');
     setModalVisible(true);
   };
 
@@ -348,12 +366,21 @@ export default function LibraryScreen() {
                     <Text style={styles.genreText} numberOfLines={1}>{capitalize(item.genre)}</Text>
                   ) : null}
                 </View>
-                {item.rating && item.rating > 0 ? (
-                  <View style={styles.miniRating}>
-                    <Ionicons name="star" size={10} color={colors.secondary} />
-                    <Text style={styles.miniRatingText}>{item.rating}</Text>
-                  </View>
-                ) : null}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {item.format && item.format !== 'physical' ? (
+                    <Ionicons 
+                      name={(item.format === 'ebook' ? 'phone-portrait-outline' : 'headset-outline') as any} 
+                      size={12} 
+                      color={colors.textLight} 
+                    />
+                  ) : null}
+                  {item.rating && item.rating > 0 ? (
+                    <View style={styles.miniRating}>
+                      <Ionicons name="star" size={10} color={colors.secondary} />
+                      <Text style={styles.miniRatingText}>{item.rating}</Text>
+                    </View>
+                  ) : null}
+                </View>
               </View>
 
               {isExpanded && (
@@ -447,7 +474,7 @@ export default function LibraryScreen() {
           </View>
 
           <View style={styles.filterTabs}>
-            {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
+            {(['reading', 'toread', 'read', 'dnf'] as BookStatus[]).map((s) => (
               <TouchableOpacity key={s} onPress={() => setFilterStatus(s)} style={[styles.tab, filterStatus === s && { borderBottomColor: colors.primary, borderBottomWidth: 3 }]}>
                 <Text style={[styles.tabText, { color: filterStatus === s ? colors.textDark : colors.textLight }]}>{s === 'toread' ? 'TO READ' : s.toUpperCase()} ({getTabCount(s)})</Text>
               </TouchableOpacity>
@@ -635,11 +662,57 @@ export default function LibraryScreen() {
                 </View>
               </View>
               <Text style={styles.inputLabel}>Status</Text>
-              <View style={styles.statusRow}>
-                {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
-                  <TouchableOpacity key={s} onPress={() => setStatus(s)} style={[styles.statusBtn, { borderColor: colors.border }, status === s && { backgroundColor: colors.primary, borderColor: colors.primary }]}><Text style={[styles.statusBtnText, { color: status === s ? 'white' : colors.textLight }]}>{s === 'toread' ? 'To Read' : s}</Text></TouchableOpacity>
+              <View style={[styles.statusRow, { marginBottom: 12 }]}>
+                {(['reading', 'toread', 'read', 'dnf'] as BookStatus[]).map((s) => (
+                  <TouchableOpacity 
+                    key={s} 
+                    onPress={() => setStatus(s)} 
+                    style={[styles.statusBtn, { borderColor: colors.border }, status === s && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                  >
+                    <Text style={[styles.statusBtnText, { color: status === s ? 'white' : colors.textLight }]}>
+                      {s === 'toread' ? 'To Read' : s.toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
                 ))}
               </View>
+
+              {status === 'dnf' && (
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={styles.inputLabel}>Why did you stop reading? (Optional)</Text>
+                  <TextInput 
+                    style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} 
+                    value={dnfReason} 
+                    onChangeText={setDnfReason} 
+                    placeholder="e.g. Too slow, lost interest" 
+                    placeholderTextColor={colors.textLight} 
+                  />
+                </View>
+              )}
+
+              <Text style={styles.inputLabel}>Format</Text>
+              <View style={[styles.statusRow, { marginBottom: 16 }]}>
+                {([
+                  { key: 'physical', label: 'Physical', icon: 'book-outline' },
+                  { key: 'ebook', label: 'Ebook', icon: 'phone-portrait-outline' },
+                  { key: 'audiobook', label: 'Audiobook', icon: 'headset-outline' }
+                ] as const).map((f) => (
+                  <TouchableOpacity 
+                    key={f.key} 
+                    onPress={() => setFormat(f.key)} 
+                    style={[
+                      styles.statusBtn, 
+                      { borderColor: colors.border, flexDirection: 'row', gap: 6, justifyContent: 'center' }, 
+                      format === f.key && { backgroundColor: colors.primary, borderColor: colors.primary }
+                    ]}
+                  >
+                    <Ionicons name={f.icon as any} size={14} color={format === f.key ? 'white' : colors.textLight} />
+                    <Text style={[styles.statusBtnText, { color: format === f.key ? 'white' : colors.textLight }]}>
+                      {f.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
               {status === 'read' && (
                 <>
                   <Text style={styles.inputLabel}>Rating</Text>
@@ -707,7 +780,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', marginTop: 100 },
   emptyText: { marginTop: 16, fontSize: 16, fontWeight: '600' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalContent: { width: '100%', maxWidth: 400, borderRadius: 28, padding: 24, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20 },
+  modalContent: { width: '100%', maxWidth: 400, maxHeight: '85%', borderRadius: 28, padding: 24, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, width: '100%' },
   modalTitle: { fontSize: 24, fontWeight: '900' },
   apiSearchContainer: { marginBottom: 8 },
