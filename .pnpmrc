@@ -1,2 +1,4 @@
 shamefully-hoist=true
 node-linker=hoisted
+fetch-timeout=100000
+network-timeout=100000
