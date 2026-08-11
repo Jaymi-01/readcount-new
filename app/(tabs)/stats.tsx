@@ -282,6 +282,7 @@ export default function StatsScreen() {
   const storyProgress = useSharedValue(0);
   
   const [hasSeenWrapped, setHasSeenWrapped] = useState(false);
+  const [formatStats, setFormatStats] = useState({ physical: 0, ebook: 0, audiobook: 0 });
 
   const checkAndUnlockAchievement = useCallback(async (achievementId: string) => {
     if (!user) return;
@@ -330,6 +331,9 @@ export default function StatsScreen() {
       const authors: {[key: string]: number} = {};
       const genres: {[key: string]: number} = {};
       const allReadBooks: Date[] = [];
+      let physicalCount = 0;
+      let ebookCount = 0;
+      let audiobookCount = 0;
 
       snapshot.forEach((doc) => {
         const data = doc.data();
@@ -347,6 +351,12 @@ export default function StatsScreen() {
             count++;
             monthCounts[finishDate.getMonth()]++;
             if (data.author) authors[data.author] = (authors[data.author] || 0) + 1;
+            
+            const fmt = data.format || 'physical';
+            if (fmt === 'physical') physicalCount++;
+            else if (fmt === 'ebook') ebookCount++;
+            else if (fmt === 'audiobook') audiobookCount++;
+
             if (data.genre) {
               const normalizedGenre = data.genre.charAt(0).toUpperCase() + data.genre.slice(1).toLowerCase();
               genres[normalizedGenre] = (genres[normalizedGenre] || 0) + 1;
@@ -410,6 +420,7 @@ export default function StatsScreen() {
         }
       }
       setCurrentStreak(streak);
+      setFormatStats({ physical: physicalCount, ebook: ebookCount, audiobook: audiobookCount });
 
       progressValue.value = withSpring(Math.min(count / (yearlyGoal || 1), 1), { damping: 15 });
       setLoading(false);
@@ -480,6 +491,13 @@ export default function StatsScreen() {
   );
   
   const isLocked = selectedYear !== 'All' && (!isYearEnded || !hasSeenWrapped);
+
+  const totalFormatCount = formatStats.physical + formatStats.ebook + formatStats.audiobook;
+  const formatPercentages = {
+    physical: totalFormatCount > 0 ? (formatStats.physical / totalFormatCount) * 100 : 0,
+    ebook: totalFormatCount > 0 ? (formatStats.ebook / totalFormatCount) * 100 : 0,
+    audiobook: totalFormatCount > 0 ? (formatStats.audiobook / totalFormatCount) * 100 : 0,
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -622,6 +640,48 @@ export default function StatsScreen() {
                   <Text style={[styles.personaHeaderLabel, { color: colors.textLight }]}>Reading Persona</Text>
                   <Text style={[styles.personaTitle, { color: colors.textDark }]}>{personality.title}</Text>
                   <Text style={[styles.personaDesc, { color: colors.textLight }]}>{personality.desc}</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Format Exploration Card */}
+            {booksReadThisYear > 0 && (
+              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, padding: 20, marginBottom: 24, elevation: 4 }]}>
+                <Text style={[styles.cardTitle, { color: colors.textLight, marginBottom: 16, fontSize: 11, fontWeight: '900', letterSpacing: 1 }]}>READING FORMATS</Text>
+                
+                {/* Segmented horizontal breakdown bar */}
+                <View style={{ height: 16, width: '100%', borderRadius: 8, flexDirection: 'row', overflow: 'hidden', backgroundColor: colors.border + '40', marginBottom: 16 }}>
+                  {formatPercentages.physical > 0 && (
+                    <View style={{ width: `${formatPercentages.physical}%`, backgroundColor: colors.primary }} />
+                  )}
+                  {formatPercentages.ebook > 0 && (
+                    <View style={{ width: `${formatPercentages.ebook}%`, backgroundColor: colors.secondary }} />
+                  )}
+                  {formatPercentages.audiobook > 0 && (
+                    <View style={{ width: `${formatPercentages.audiobook}%`, backgroundColor: '#f59e0b' }} />
+                  )}
+                </View>
+
+                {/* Styled legend grid */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary, marginRight: 6 }} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textDark }}>
+                      Physical ({formatStats.physical})
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.secondary, marginRight: 6 }} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textDark }}>
+                      Ebook ({formatStats.ebook})
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#f59e0b', marginRight: 6 }} />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textDark }}>
+                      Audio ({formatStats.audiobook})
+                    </Text>
+                  </View>
                 </View>
               </View>
             )}
