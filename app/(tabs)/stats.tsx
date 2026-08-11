@@ -188,12 +188,12 @@ function BookStackGraphic({ count }: { count: number }) {
     </View>
   );
 }
+const MONTHS_UPPER = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
 function FlippingCalendarMonth({ targetMonth }: { targetMonth: string }) {
-  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
   const [displayMonth, setDisplayMonth] = useState('JAN');
   const safeTarget = targetMonth ? targetMonth.toUpperCase() : 'JAN';
-  const targetIndex = months.indexOf(safeTarget) !== -1 ? months.indexOf(safeTarget) : 0;
+  const targetIndex = MONTHS_UPPER.indexOf(safeTarget) !== -1 ? MONTHS_UPPER.indexOf(safeTarget) : 0;
 
   useEffect(() => {
     let currentIdx = 0;
@@ -208,7 +208,7 @@ function FlippingCalendarMonth({ targetMonth }: { targetMonth: string }) {
 
     const flip = () => {
       currentIdx = (currentIdx + 1) % 12;
-      setDisplayMonth(months[currentIdx]);
+      setDisplayMonth(MONTHS_UPPER[currentIdx]);
       flipsCount++;
 
       if (flipsCount < totalFlips) {
@@ -222,7 +222,7 @@ function FlippingCalendarMonth({ targetMonth }: { targetMonth: string }) {
 
     timeoutId = setTimeout(flip, 80);
     return () => clearTimeout(timeoutId);
-  }, [targetMonth]);
+  }, [targetIndex, safeTarget]);
 
   return (
     <Animated.Text style={styles.calendarMonth}>
@@ -436,7 +436,7 @@ export default function StatsScreen() {
       unsubscribeAch();
       unsubscribeUser();
     };
-  }, [user, selectedYear, checkAndUnlockAchievement, progressValue]);
+  }, [user, selectedYear, checkAndUnlockAchievement, progressValue, yearlyGoal]);
 
 
 
