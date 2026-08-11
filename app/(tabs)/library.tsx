@@ -47,6 +47,8 @@ interface Book {
   dateStartedReading?: any;
   coverUrl?: string;
   processedDate: Date;
+  series?: string;
+  seriesOrder?: number;
 }
 
 export default function LibraryScreen() {
@@ -72,6 +74,8 @@ export default function LibraryScreen() {
   const [status, setStatus] = useState<BookStatus>('reading');
   const [rating, setRating] = useState(0);
   const [coverUrl, setCoverUrl] = useState('');
+  const [series, setSeries] = useState('');
+  const [seriesOrder, setSeriesOrder] = useState('');
 
   // Google Books search states
   const [apiQuery, setApiQuery] = useState('');
@@ -149,6 +153,7 @@ export default function LibraryScreen() {
       return;
     }
     try {
+      const seriesOrderNum = parseInt(seriesOrder);
       const bookData: any = { 
         title, 
         author, 
@@ -156,7 +161,9 @@ export default function LibraryScreen() {
         status, 
         rating, 
         coverUrl,
-        userId: user?.uid 
+        userId: user?.uid,
+        series: series?.trim() || '',
+        seriesOrder: !isNaN(seriesOrderNum) && seriesOrderNum > 0 ? seriesOrderNum : null
       };
       if (editingBook) {
         // If status changed to 'read' and it wasn't read before, set dateFinished
@@ -236,6 +243,8 @@ export default function LibraryScreen() {
 
   const resetForm = () => {
     setEditingBook(null); setTitle(''); setAuthor(''); setGenre(''); setStatus(filterStatus); setRating(0); setCoverUrl(''); setApiQuery(''); setSearchResults([]);
+    setSeries('');
+    setSeriesOrder('');
   };
 
   const openEditModal = (book: Book) => {
@@ -246,6 +255,8 @@ export default function LibraryScreen() {
     setStatus(book.status); 
     setRating(book.rating || 0); 
     setCoverUrl(book.coverUrl || '');
+    setSeries(book.series || '');
+    setSeriesOrder(book.seriesOrder?.toString() || '');
     setModalVisible(true);
   };
 
@@ -280,14 +291,18 @@ export default function LibraryScreen() {
     return allBooks.filter(b => {
       const matchesYear = selectedYear === 'All' || b.processedDate.getFullYear().toString() === selectedYear;
       const matchesGenre = selectedGenre === 'All' || capitalize(b.genre?.trim()) === selectedGenre;
-      const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || b.author.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            b.author.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            (b.series && b.series.toLowerCase().includes(searchQuery.toLowerCase()));
       return b.status === s && matchesYear && matchesGenre && matchesSearch;
     }).length;
   };
 
   const filteredBooks = allBooks.filter(b => {
     const matchesStatus = b.status === filterStatus;
-    const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || b.author.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = b.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          b.author.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (b.series && b.series.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesYear = selectedYear === 'All' || b.processedDate.getFullYear().toString() === selectedYear;
     const matchesGenre = selectedGenre === 'All' || capitalize(b.genre?.trim()) === selectedGenre;
     return matchesStatus && matchesSearch && matchesYear && matchesGenre;
@@ -318,6 +333,14 @@ export default function LibraryScreen() {
                   <Text style={styles.coverAuthor} numberOfLines={1}>{item.author}</Text>
                 </>
               )}
+
+              {item.series ? (
+                <View style={[styles.seriesBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.seriesBadgeText} numberOfLines={1}>
+                    {item.series}{item.seriesOrder ? ` #${item.seriesOrder}` : ''}
+                  </Text>
+                </View>
+              ) : null}
               <View style={styles.coverFooter}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dateText}>{item.processedDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Text>
@@ -587,6 +610,30 @@ export default function LibraryScreen() {
               <Text style={styles.inputLabel}>Title</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={title} onChangeText={setTitle} />
               <Text style={styles.inputLabel}>Author</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={author} onChangeText={setAuthor} />
               <Text style={styles.inputLabel}>Genre</Text><TextInput style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} value={genre} onChangeText={(text) => setGenre(text.toUpperCase())} placeholder="E.G. FANTASY, SCI-FI" placeholderTextColor={colors.textLight} autoCapitalize="characters" />
+              
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+                <View style={{ flex: 2 }}>
+                  <Text style={styles.inputLabel}>Series Name</Text>
+                  <TextInput 
+                    style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} 
+                    value={series} 
+                    onChangeText={setSeries} 
+                    placeholder="e.g. Dune" 
+                    placeholderTextColor={colors.textLight} 
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.inputLabel}>Vol. #</Text>
+                  <TextInput 
+                    style={[styles.input, { color: colors.textDark, borderColor: colors.border }]} 
+                    value={seriesOrder} 
+                    onChangeText={setSeriesOrder} 
+                    keyboardType="numeric" 
+                    placeholder="e.g. 1" 
+                    placeholderTextColor={colors.textLight} 
+                  />
+                </View>
+              </View>
               <Text style={styles.inputLabel}>Status</Text>
               <View style={styles.statusRow}>
                 {(['reading', 'toread', 'read'] as BookStatus[]).map((s) => (
@@ -722,6 +769,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, 
     width: '100%' 
   },
-  inlineActionText: { fontSize: 12, fontWeight: 'bold', letterSpacing: 0.5 },
+  inlineActionText: { 
+    fontSize: 11, 
+    fontWeight: '900', 
+    letterSpacing: 1 
+  },
+  seriesBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    zIndex: 10,
+    maxWidth: '75%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  seriesBadgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   inlineDivider: { height: 1, width: '100%', opacity: 0.1 },
 });
