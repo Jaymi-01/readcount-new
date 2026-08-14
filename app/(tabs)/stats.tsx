@@ -2,9 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { collection, doc, getDoc, onSnapshot, query, where, setDoc, Timestamp } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, Share, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, FadeInDown, ZoomIn, Easing, SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, withRepeat, withSequence, FadeInDown, ZoomIn, Easing, SharedValue } from 'react-native-reanimated';
 import { COLORS, darkColors } from '../../constants/colors';
 import { auth, db } from '../../firebaseConfig';
 import { DoodleBackground } from '../../components/DoodleBackground';
@@ -463,6 +463,26 @@ export default function StatsScreen() {
     }
   }, [wrappedStep, user, selectedYear]);
 
+  const handleShareWrapped = async () => {
+    try {
+      const shareText = `📚 My ${selectedYear} Year in Books on ReadCount!\n` +
+        `------------------------------------\n` +
+        `📖 Books Finished: ${booksReadThisYear}\n` +
+        `✍️ Top Author: ${topAuthor}\n` +
+        `🎨 Favorite Genre: ${topGenre}\n` +
+        `📅 Peak Month: ${topMonth}\n` +
+        `🧠 Reading Persona: ${personality.title}\n\n` +
+        `Track your reading goals with ReadCount!`;
+      
+      await Share.share({
+        message: shareText,
+        title: `${selectedYear} ReadCount Wrapped`
+      });
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: 'Error sharing', text2: e.message });
+    }
+  };
+
   useEffect(() => {
     if (wrappedStep > 0 && wrappedStep < 5) {
       storyProgress.value = 0;
@@ -871,7 +891,14 @@ export default function StatsScreen() {
                   </View>
                 </Animated.View>
 
-                <Animated.View entering={FadeInDown.delay(800)}>
+                <Animated.View entering={FadeInDown.delay(800)} style={{ width: '100%', alignItems: 'center', marginTop: 16 }}>
+                  <TouchableOpacity 
+                    style={[styles.shareBtn, { backgroundColor: colors.primary }]}
+                    onPress={handleShareWrapped}
+                  >
+                    <Ionicons name="share-social" size={18} color="white" />
+                    <Text style={styles.shareBtnText}>Share My Year</Text>
+                  </TouchableOpacity>
                   <Text style={styles.wrappedFooter}>#ReadCountWrapped</Text>
                 </Animated.View>
               </ScrollView>
@@ -992,4 +1019,26 @@ const styles = StyleSheet.create({
   lockedSubtitle: { fontSize: 13, fontWeight: '500', textAlign: 'center', lineHeight: 22, opacity: 0.8, paddingHorizontal: 8 },
   teaserStats: { marginTop: 24, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 16, borderStyle: 'dashed', borderWidth: 1.5 },
   teaserStatsText: { fontSize: 13, fontWeight: '700' },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 20,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 16,
+  },
+  shareBtnText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
 });
