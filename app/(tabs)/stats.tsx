@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { collection, doc, getDoc, onSnapshot, query, where, setDoc, Timestamp } from 'firebase/firestore';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, Share, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, withRepeat, withSequence, FadeInDown, ZoomIn, Easing, SharedValue } from 'react-native-reanimated';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import { COLORS, darkColors } from '../../constants/colors';
 import { auth, db } from '../../firebaseConfig';
 import { DoodleBackground } from '../../components/DoodleBackground';
@@ -284,6 +286,7 @@ export default function StatsScreen() {
   
   const [hasSeenWrapped, setHasSeenWrapped] = useState(false);
   const [formatStats, setFormatStats] = useState({ physical: 0, ebook: 0, audiobook: 0 });
+  const shareCardRef = useRef<View>(null);
 
   const checkAndUnlockAchievement = useCallback(async (achievementId: string) => {
     if (!user) return;
@@ -466,22 +469,24 @@ export default function StatsScreen() {
   }, [wrappedStep, user, selectedYear]);
 
   const handleShareWrapped = async () => {
+    if (!shareCardRef.current) return;
     try {
-      const shareText = `📚 My ${selectedYear} Year in Books on ReadCount!\n` +
-        `------------------------------------\n` +
-        `📖 Books Finished: ${booksReadThisYear}\n` +
-        `✍️ Top Author: ${topAuthor}\n` +
-        `🎨 Favorite Genre: ${topGenre}\n` +
-        `📅 Peak Month: ${topMonth}\n` +
-        `🧠 Reading Persona: ${personality.title}\n\n` +
-        `Track your reading goals with ReadCount!`;
-      
-      await Share.share({
-        message: shareText,
-        title: `${selectedYear} ReadCount Wrapped`
+      const uri = await captureRef(shareCardRef, {
+        format: 'png',
+        quality: 0.95,
       });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: `${selectedYear} ReadCount Wrapped`,
+        });
+      } else {
+        Toast.show({ type: 'error', text1: 'Sharing Not Available', text2: 'Native sharing is not supported on this device.' });
+      }
     } catch (e: any) {
-      Toast.show({ type: 'error', text1: 'Error sharing', text2: e.message });
+      console.error("ViewShot Error:", e);
+      Toast.show({ type: 'error', text1: 'Error sharing card', text2: e.message });
     }
   };
 
@@ -743,26 +748,26 @@ export default function StatsScreen() {
           </TouchableOpacity>
 
           {/* Story Left/Right Tap Overlays */}
-          <View style={styles.navigationOverlayContainer} pointerEvents="box-none">
-            <TouchableOpacity 
-              activeOpacity={1} 
-              style={styles.navLeftTap} 
-              onPress={() => {
-                if (wrappedStep > 1) {
-                  setWrappedStep(prev => prev - 1);
-                }
-              }} 
-            />
-            <TouchableOpacity 
-              activeOpacity={1} 
-              style={styles.navRightTap} 
-              onPress={() => {
-                if (wrappedStep < 5) {
+          {wrappedStep < 5 && (
+            <View style={styles.navigationOverlayContainer} pointerEvents="box-none">
+              <TouchableOpacity 
+                activeOpacity={1} 
+                style={styles.navLeftTap} 
+                onPress={() => {
+                  if (wrappedStep > 1) {
+                    setWrappedStep(prev => prev - 1);
+                  }
+                }} 
+              />
+              <TouchableOpacity 
+                activeOpacity={1} 
+                style={styles.navRightTap} 
+                onPress={() => {
                   setWrappedStep(prev => prev + 1);
-                }
-              }} 
-            />
-          </View>
+                }} 
+              />
+            </View>
+          )}
 
           {/* STORY SLIDE 1: TOTAL BOOKS (SCATTER) */}
           {wrappedStep === 1 && (
@@ -860,7 +865,7 @@ export default function StatsScreen() {
                   <Text style={styles.wrappedTitle}>WRAPPED</Text>
                 </Animated.View>
 
-                <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.wrappedShareCard}>
+                <Animated.View ref={shareCardRef} collapsable={false} entering={FadeInDown.delay(400).springify()} style={styles.wrappedShareCard}>
                   <View style={styles.shareCardHeader}>
                     <Ionicons name="library" size={24} color="#00f5d4" />
                     <Text style={styles.shareCardBrand}>READCOUNT</Text>
