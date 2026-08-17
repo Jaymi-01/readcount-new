@@ -11,6 +11,7 @@ import { DoodleBackground } from '../../components/DoodleBackground';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { useTheme } from '../../context/ThemeContext';
 import Toast from 'react-native-toast-message';
+import { triggerLocalNotification } from '../../utils/notifications';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -292,6 +293,7 @@ export default function StatsScreen() {
       if (!achSnap.exists()) {
         await setDoc(achRef, { unlocked: true, unlockedAt: Timestamp.now() });
         Toast.show({ type: 'success', text1: '🏆 Trophy Unlocked!', text2: `You reached your reading goal!`, visibilityTime: 4000 });
+        triggerLocalNotification('🏆 Trophy Unlocked!', 'You unlocked: The Finisher');
       }
     } catch (e) { console.error("Achievement error:", e); }
   }, [user]);
