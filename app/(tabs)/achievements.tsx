@@ -9,6 +9,7 @@ import { DoodleBackground } from '../../components/DoodleBackground';
 import { useTheme } from '../../context/ThemeContext';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSequence } from 'react-native-reanimated';
+import { triggerLocalNotification } from '../../utils/notifications';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -476,7 +477,13 @@ export default function AchievementsScreen() {
         const achSnap = await getDoc(achRef);
         if (toUnlock[id]) {
           const data = toUnlock[id];
-          if (!achSnap.exists()) await setDoc(achRef, { unlocked: true, unlockedAt: data.date, count: data.count || 1 });
+          if (!achSnap.exists()) {
+            await setDoc(achRef, { unlocked: true, unlockedAt: data.date, count: data.count || 1 });
+            const definition = ACHIEVEMENT_DEFINITIONS.find(d => d.id === id);
+            if (definition) {
+              triggerLocalNotification('🏆 Trophy Unlocked!', `You unlocked: ${definition.title}`);
+            }
+          }
         }
       }
     } catch (e) { console.error("Backfill error:", e); }
