@@ -212,6 +212,38 @@ export default function LibraryScreen() {
     if (!apiQuery.trim()) return;
     setIsSearchingApi(true);
     try {
+      // 1. Try Google Books API first (fastest, most complete)
+      try {
+        const googleUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(apiQuery)}&maxResults=5`;
+        const googleRes = await fetch(googleUrl);
+        if (googleRes.ok) {
+          const googleData = await googleRes.json();
+          if (googleData.items && googleData.items.length > 0) {
+            const results = googleData.items.map((item: any) => {
+              const info = item.volumeInfo || {};
+              let cover = null;
+              if (info.imageLinks) {
+                cover = info.imageLinks.thumbnail || info.imageLinks.smallThumbnail || null;
+                if (cover && cover.startsWith('http://')) {
+                  cover = cover.replace('http://', 'https://');
+                }
+              }
+              return {
+                title: info.title || '',
+                author: info.authors ? info.authors.join(', ') : 'Unknown Author',
+                genre: info.categories ? info.categories[0] : '',
+                cover: cover,
+              };
+            });
+            setSearchResults(results);
+            return;
+          }
+        }
+      } catch (gErr) {
+        console.warn('Google Books fetch failed, trying OpenLibrary fallback:', gErr);
+      }
+
+      // 2. Fallback to OpenLibrary if Google Books fails or returns empty
       const response = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(apiQuery)}&limit=5`);
       const data = await response.json();
       if (data.docs && data.docs.length > 0) {
