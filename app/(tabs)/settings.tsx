@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Switch, TouchableOpacity, Modal, TextInput, ActivityIndicator, ScrollView, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { auth, db } from '../../firebaseConfig';
-import { doc, getDoc, updateDoc, deleteDoc, Timestamp, addDoc, collection } from 'firebase/firestore';
-import { updateProfile, deleteUser, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { COLORS, darkColors } from '../../constants/colors';
-import { DoodleBackground } from '../../components/DoodleBackground';
-import { useTheme } from '../../context/ThemeContext';
-import { useLock } from '../../context/LockContext';
-import Toast from 'react-native-toast-message';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import * as Updates from 'expo-updates';
+import { deleteUser, onAuthStateChanged, signOut, updateProfile, User } from 'firebase/auth';
+import { addDoc, collection, deleteDoc, doc, getDoc, Timestamp, updateDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Toast from 'react-native-toast-message';
+import { DoodleBackground } from '../../components/DoodleBackground';
+import { COLORS, darkColors } from '../../constants/colors';
+import { useLock } from '../../context/LockContext';
+import { useTheme } from '../../context/ThemeContext';
+import { auth, db } from '../../firebaseConfig';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -40,6 +41,33 @@ export default function SettingsScreen() {
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [pinStep, setPinStep] = useState(1); // 1: Enter, 2: Confirm
+  const [updating, setUpdating] = useState(false);
+
+  const handleCheckForUpdates = async () => {
+    if (Platform.OS === 'web') {
+      Toast.show({ type: 'info', text1: 'Not Available', text2: 'OTA updates are only supported on native devices.' });
+      return;
+    }
+    setUpdating(true);
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        Toast.show({ type: 'info', text1: 'Update Found', text2: 'Downloading new features...' });
+        await Updates.fetchUpdateAsync();
+        Toast.show({ type: 'success', text1: 'Updated Successfully', text2: 'Restarting app to apply...' });
+        setTimeout(async () => {
+          await Updates.reloadAsync();
+        }, 1500);
+      } else {
+        Toast.show({ type: 'success', text1: 'Up to Date', text2: 'You are running the latest version!' });
+      }
+    } catch (e: any) {
+      console.error("OTA Error:", e);
+      Toast.show({ type: 'error', text1: 'Check Failed', text2: 'Could not connect to update server.' });
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -249,6 +277,20 @@ export default function SettingsScreen() {
               <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Report an Issue</Text>
             </View>
             <Ionicons name="bug-outline" size={20} color={colors.textLight} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} onPress={handleCheckForUpdates} disabled={updating}>
+            <View style={styles.rowTextContainer}>
+              <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>Check for Updates</Text>
+              <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>
+                {updating ? 'Checking...' : 'Check server for updates'}
+              </Text>
+            </View>
+            {updating ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="cloud-download-outline" size={20} color={colors.textLight} />
+            )}
           </TouchableOpacity>
         </View>
       </View>
