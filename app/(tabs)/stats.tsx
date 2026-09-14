@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { collection, doc, getDoc, onSnapshot, query, where, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
-import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, Share, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, withRepeat, withSequence, FadeInDown, ZoomIn, Easing, SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming, FadeInDown, ZoomIn, Easing, SharedValue } from 'react-native-reanimated';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import * as Haptics from 'expo-haptics';
 import { COLORS, darkColors } from '../../constants/colors';
 import { auth, db } from '../../firebaseConfig';
 import { DoodleBackground } from '../../components/DoodleBackground';
@@ -268,6 +269,33 @@ export default function StatsScreen() {
   const [monthlyStats, setMonthlyStats] = useState<{month: string, count: number}[]>([]);
   const [selectedYear, setSelectedYear] = useState<number | 'All'>(new Date().getFullYear());
   const [availableYears, setAvailableYears] = useState<(number | 'All')[]>([new Date().getFullYear()]);
+  const [showYearModal, setShowYearModal] = useState(false);
+
+  // Chronological order for intuitive prev / next stepping: [earliestYear, ..., latestYear, 'All']
+  const chronologicalYears = React.useMemo(() => {
+    const numericYears = availableYears
+      .filter((y): y is number => typeof y === 'number')
+      .sort((a, b) => a - b);
+    return [...numericYears, 'All' as const];
+  }, [availableYears]);
+
+  const currentYearIndex = chronologicalYears.indexOf(selectedYear as any);
+  const isPrevDisabled = currentYearIndex <= 0;
+  const isNextDisabled = currentYearIndex >= chronologicalYears.length - 1;
+
+  const handlePrevYear = () => {
+    if (isPrevDisabled) return;
+    const newYear = chronologicalYears[currentYearIndex - 1];
+    setSelectedYear(newYear);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleNextYear = () => {
+    if (isNextDisabled) return;
+    const newYear = chronologicalYears[currentYearIndex + 1];
+    setSelectedYear(newYear);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   // Wrapped Story State: 0=Hidden, 1=Books, 2=Author, 3=Month, 4=Genre, 5=Summary
   const [wrappedStep, setWrappedStep] = useState(0);
@@ -541,17 +569,60 @@ export default function StatsScreen() {
       <DoodleBackground colors={colors} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         
-        {/* Sleek dashboard header */}
+        {/* Sleek dashboard header with Stress-Free Year Navigator */}
         <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: colors.textDark }]}>Reading Stats</Text>
           
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.yearScroll} contentContainerStyle={styles.yearScrollContent}>
-            {availableYears.map((year) => (
-              <TouchableOpacity key={year} onPress={() => setSelectedYear(year)} style={[styles.yearChip, { backgroundColor: selectedYear === year ? colors.primary : colors.card, borderColor: selectedYear === year ? colors.primary : colors.border }]}>
-                <Text style={[styles.yearText, { color: selectedYear === year ? '#FFF' : colors.textLight }]}>{year === 'All' ? 'LIFETIME' : year}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <View style={[styles.yearControlBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <TouchableOpacity 
+              onPress={handlePrevYear} 
+              disabled={isPrevDisabled}
+              style={[styles.yearNavBtn, isPrevDisabled && styles.yearNavBtnDisabled]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.6}
+            >
+              <Ionicons 
+                name="chevron-back" 
+                size={20} 
+                color={isPrevDisabled ? (theme === 'dark' ? '#555' : '#bbb') : colors.textDark} 
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              onPress={() => {
+                setShowYearModal(true);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }} 
+              style={styles.yearCenterPicker}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.yearIconBubble, { backgroundColor: colors.primary + '20' }]}>
+                <Ionicons 
+                  name={selectedYear === 'All' ? "infinite" : "calendar-outline"} 
+                  size={16} 
+                  color={colors.primary} 
+                />
+              </View>
+              <Text style={[styles.yearPickerLabel, { color: colors.textDark }]}>
+                {selectedYear === 'All' ? 'Lifetime Stats' : `${selectedYear} Stats`}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={colors.textLight} style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              onPress={handleNextYear} 
+              disabled={isNextDisabled}
+              style={[styles.yearNavBtn, isNextDisabled && styles.yearNavBtnDisabled]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              activeOpacity={0.6}
+            >
+              <Ionicons 
+                name="chevron-forward" 
+                size={20} 
+                color={isNextDisabled ? (theme === 'dark' ? '#555' : '#bbb') : colors.textDark} 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Goal Card with percentage and trophy badge */}
@@ -924,6 +995,141 @@ export default function StatsScreen() {
 
         </SafeAreaView>
       </Modal>
+
+      {/* Year Picker Bottom Sheet Modal */}
+      <Modal
+        visible={showYearModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowYearModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowYearModal(false)}
+        >
+          <TouchableOpacity 
+            activeOpacity={1} 
+            style={[styles.yearModalContent, { backgroundColor: colors.card, borderColor: colors.border }]}
+          >
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            
+            <View style={styles.yearModalHeader}>
+              <View>
+                <Text style={[styles.yearModalTitle, { color: colors.textDark }]}>Select Reading Year</Text>
+                <Text style={[styles.yearModalSubtitle, { color: colors.textLight }]}>
+                  Jump to any year without scrolling
+                </Text>
+              </View>
+              <TouchableOpacity 
+                onPress={() => setShowYearModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={[styles.modalCloseBtn, { backgroundColor: colors.border + '30' }]}
+              >
+                <Ionicons name="close" size={18} color={colors.textDark} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.yearModalList} showsVerticalScrollIndicator={false}>
+              {/* Lifetime Option */}
+              <TouchableOpacity
+                onPress={() => {
+                  setSelectedYear('All');
+                  setShowYearModal(false);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                }}
+                style={[
+                  styles.yearModalItem,
+                  { borderColor: colors.border },
+                  selectedYear === 'All' && { 
+                    backgroundColor: colors.primary + '15', 
+                    borderColor: colors.primary 
+                  }
+                ]}
+              >
+                <View style={styles.yearItemLeft}>
+                  <View style={[styles.yearModalIconBadge, { backgroundColor: selectedYear === 'All' ? colors.primary : colors.border + '40' }]}>
+                    <Ionicons 
+                      name="infinite" 
+                      size={18} 
+                      color={selectedYear === 'All' ? 'white' : colors.textDark} 
+                    />
+                  </View>
+                  <View>
+                    <Text style={[styles.yearItemTitle, { color: colors.textDark, fontWeight: selectedYear === 'All' ? '800' : '600' }]}>
+                      Lifetime Stats
+                    </Text>
+                    <Text style={[styles.yearItemSubtitle, { color: colors.textLight }]}>
+                      All books read across all years
+                    </Text>
+                  </View>
+                </View>
+                {selectedYear === 'All' && (
+                  <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
+                    <Ionicons name="checkmark" size={14} color="white" />
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {/* Specific Years */}
+              {availableYears
+                .filter((y): y is number => typeof y === 'number')
+                .map((year) => {
+                  const isCurrent = year === new Date().getFullYear();
+                  const isSelected = selectedYear === year;
+                  return (
+                    <TouchableOpacity
+                      key={year}
+                      onPress={() => {
+                        setSelectedYear(year);
+                        setShowYearModal(false);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
+                      style={[
+                        styles.yearModalItem,
+                        { borderColor: colors.border },
+                        isSelected && { 
+                          backgroundColor: colors.primary + '15', 
+                          borderColor: colors.primary 
+                        }
+                      ]}
+                    >
+                      <View style={styles.yearItemLeft}>
+                        <View style={[styles.yearModalIconBadge, { backgroundColor: isSelected ? colors.primary : colors.border + '40' }]}>
+                          <Ionicons 
+                            name="calendar" 
+                            size={16} 
+                            color={isSelected ? 'white' : colors.textDark} 
+                          />
+                        </View>
+                        <View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[styles.yearItemTitle, { color: colors.textDark, fontWeight: isSelected ? '800' : '600' }]}>
+                              {year}
+                            </Text>
+                            {isCurrent && (
+                              <View style={[styles.currentYearBadge, { backgroundColor: colors.primary + '20' }]}>
+                                <Text style={[styles.currentYearBadgeText, { color: colors.primary }]}>Current</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={[styles.yearItemSubtitle, { color: colors.textLight }]}>
+                            {isCurrent ? 'Ongoing reading challenge' : `${year} Reading year`}
+                          </Text>
+                        </View>
+                      </View>
+                      {isSelected && (
+                        <View style={[styles.checkCircle, { backgroundColor: colors.primary }]}>
+                          <Ionicons name="checkmark" size={14} color="white" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -934,10 +1140,138 @@ const styles = StyleSheet.create({
   header: { marginBottom: 24 },
   greetingText: { fontSize: 14, fontWeight: '800', opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1, marginBottom: 16 },
-  yearScroll: { marginTop: 8 },
-  yearScrollContent: { gap: 10, paddingRight: 20 },
-  yearChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1, minWidth: 80, alignItems: 'center' },
-  yearText: { fontSize: 14, fontWeight: '700' },
+  yearControlBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  yearNavBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearNavBtnDisabled: {
+    opacity: 0.25,
+  },
+  yearCenterPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    paddingVertical: 6,
+  },
+  yearIconBubble: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  yearPickerLabel: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  yearModalContent: {
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 1,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 28,
+    maxHeight: '75%',
+  },
+  modalHandle: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginBottom: 16,
+    opacity: 0.4,
+  },
+  yearModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  yearModalTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  yearModalSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearModalList: {
+    width: '100%',
+  },
+  yearModalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    marginBottom: 10,
+  },
+  yearItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  yearModalIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearItemTitle: {
+    fontSize: 16,
+    letterSpacing: -0.2,
+  },
+  yearItemSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  currentYearBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  currentYearBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  checkCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   card: { padding: 24, borderRadius: 24, borderWidth: 1, marginBottom: 24 },
   cardTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 },
   wrappedBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 4 },
