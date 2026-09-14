@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
@@ -55,6 +55,7 @@ interface Book {
 }
 
 export default function LibraryScreen() {
+  const router = useRouter();
   const { theme } = useTheme();
   const colors = theme === 'dark' ? darkColors : COLORS;
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -64,6 +65,7 @@ export default function LibraryScreen() {
   const [filterStatus, setFilterStatus] = useState<BookStatus>('reading');
   const [searchQuery, setSearchQuery] = useState('');
   const [displayName, setDisplayName] = useState('Reader');
+  const [noteCounts, setNoteCounts] = useState<{ [bookId: string]: number }>({});
   
   const [selectedYear, setSelectedYear] = useState('All');
   const [selectedGenre, setSelectedGenre] = useState('All');
@@ -100,6 +102,25 @@ export default function LibraryScreen() {
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setNoteCounts({});
+      return;
+    }
+    const qNotes = query(collection(db, 'notes'), where('userId', '==', user.uid));
+    const unsubNotes = onSnapshot(qNotes, (snapshot) => {
+      const counts: { [bookId: string]: number } = {};
+      snapshot.docs.forEach((docSnap) => {
+        const d = docSnap.data();
+        if (d.bookId) {
+          counts[d.bookId] = (counts[d.bookId] || 0) + 1;
+        }
+      });
+      setNoteCounts(counts);
+    });
+    return unsubNotes;
+  }, [user]);
 
   useFocusEffect(
     useCallback(() => {
@@ -399,6 +420,12 @@ export default function LibraryScreen() {
                   ) : null}
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {noteCounts[item.id] ? (
+                    <View style={[styles.miniNoteBadge, { backgroundColor: colors.primary + '25' }]}>
+                      <Ionicons name="document-text" size={10} color={colors.primary} />
+                      <Text style={[styles.miniNoteText, { color: colors.primary }]}>{noteCounts[item.id]}</Text>
+                    </View>
+                  ) : null}
                   {item.format && item.format !== 'physical' ? (
                     <Ionicons 
                       name={(item.format === 'ebook' ? 'phone-portrait-outline' : 'headset-outline') as any} 
@@ -418,6 +445,22 @@ export default function LibraryScreen() {
               {isExpanded && (
                 <TouchableWithoutFeedback onPress={(e) => {}}>
                   <View style={[styles.inlineMenu, { backgroundColor: colors.card }]}>
+                    <TouchableOpacity 
+                      style={styles.inlineAction} 
+                      onPress={() => { 
+                        setExpandedBookId(null); 
+                        router.push({
+                          pathname: '/(tabs)/notes',
+                          params: { bookId: item.id, bookTitle: item.title }
+                        });
+                      }}
+                    >
+                      <Ionicons name="document-text-outline" size={16} color={colors.primary} />
+                      <Text style={[styles.inlineActionText, { color: colors.textDark }]} numberOfLines={1}>
+                        NOTES{noteCounts[item.id] ? ` (${noteCounts[item.id]})` : ''}
+                      </Text>
+                    </TouchableOpacity>
+                    <View style={[styles.inlineDivider, { backgroundColor: colors.border }]} />
                     <TouchableOpacity style={styles.inlineAction} onPress={() => { setExpandedBookId(null); openEditModal(item); }}>
                       <Ionicons name="pencil" size={16} color={colors.primary} />
                       <Text style={[styles.inlineActionText, { color: colors.textDark }]}>EDIT</Text>
@@ -902,4 +945,16 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   inlineDivider: { height: 1, width: '100%', opacity: 0.1 },
+  miniNoteBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  miniNoteText: {
+    fontSize: 9,
+    fontWeight: '900',
+  },
 });
