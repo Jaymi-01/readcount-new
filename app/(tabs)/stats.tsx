@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { collection, doc, getDoc, onSnapshot, query, where, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, where, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, Share, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -481,6 +481,16 @@ export default function StatsScreen() {
           mimeType: 'image/png',
           dialogTitle: `${selectedYear} ReadCount Wrapped`,
         });
+        if (user) {
+          await updateDoc(doc(db, 'users', user.uid), { sharedCard: true }).catch(() => {});
+          const achRef = doc(db, 'users', user.uid, 'achievements', 'proud_reader');
+          const achSnap = await getDoc(achRef);
+          if (!achSnap.exists()) {
+            await setDoc(achRef, { unlocked: true, unlockedAt: Timestamp.now() });
+            Toast.show({ type: 'success', text1: '🏆 Trophy Unlocked!', text2: 'You unlocked: Proud Reader', visibilityTime: 4000 });
+            triggerLocalNotification('🏆 Trophy Unlocked!', 'You unlocked: Proud Reader');
+          }
+        }
       } else {
         Toast.show({ type: 'error', text1: 'Sharing Not Available', text2: 'Native sharing is not supported on this device.' });
       }
