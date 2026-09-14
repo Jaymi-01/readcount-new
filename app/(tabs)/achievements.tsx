@@ -449,26 +449,47 @@ export default function AchievementsScreen() {
         toUnlock['generous_soul'] = { date: Timestamp.fromDate(fiveStarBooksBackfill[4].processedDate) };
       }
 
-      // Streaks logic for backfill
-      const monthMap: any = {};
+      // Streaks logic for backfill (Forward-chronological streak calculation)
+      // Map each month with read books, saving the latest finished date in that month
+      const monthBookMap = new Map<number, Date>();
       readBooks.forEach(b => {
-        monthMap[`${b.processedDate.getFullYear()}-${b.processedDate.getMonth()}`] = b.processedDate;
+        const y = b.processedDate.getFullYear();
+        const m = b.processedDate.getMonth();
+        const monthNum = y * 12 + m;
+        const existing = monthBookMap.get(monthNum);
+        if (!existing || b.processedDate.getTime() > existing.getTime()) {
+          monthBookMap.set(monthNum, b.processedDate);
+        }
       });
-      let streak = 0;
-      let checkDate = new Date();
-      if (!monthMap[`${checkDate.getFullYear()}-${checkDate.getMonth()}`]) checkDate.setMonth(checkDate.getMonth() - 1);
-      
-      let lastIncludedDate = null;
-      for (let i = 0; i < 36; i++) {
-        const key = `${checkDate.getFullYear()}-${checkDate.getMonth()}`;
-        if (monthMap[key]) {
-          streak++;
-          lastIncludedDate = monthMap[key];
-          if (streak === 3) toUnlock['consistent_reader'] = { date: Timestamp.fromDate(lastIncludedDate) };
-          if (streak === 6) toUnlock['half_year_streak'] = { date: Timestamp.fromDate(lastIncludedDate) };
-          if (streak === 12) toUnlock['year_streak'] = { date: Timestamp.fromDate(lastIncludedDate) };
-          checkDate.setMonth(checkDate.getMonth() - 1);
-        } else break;
+
+      // Sort months chronologically forward
+      const sortedMonths = Array.from(monthBookMap.keys()).sort((a, b) => a - b);
+
+      let runningStreak = 0;
+      let prevMonthNum: number | null = null;
+
+      for (const mNum of sortedMonths) {
+        if (prevMonthNum !== null && mNum === prevMonthNum + 1) {
+          runningStreak++;
+        } else {
+          runningStreak = 1;
+        }
+        prevMonthNum = mNum;
+
+        const achievementDate = monthBookMap.get(mNum)!;
+
+        // 3-Month Streak achieved on the 3rd consecutive month
+        if (runningStreak >= 3 && !toUnlock['consistent_reader']) {
+          toUnlock['consistent_reader'] = { date: Timestamp.fromDate(achievementDate) };
+        }
+        // 6-Month Streak achieved on the 6th consecutive month
+        if (runningStreak >= 6 && !toUnlock['half_year_streak']) {
+          toUnlock['half_year_streak'] = { date: Timestamp.fromDate(achievementDate) };
+        }
+        // 12-Month Streak achieved on the 12th consecutive month
+        if (runningStreak >= 12 && !toUnlock['year_streak']) {
+          toUnlock['year_streak'] = { date: Timestamp.fromDate(achievementDate) };
+        }
       }
 
       const allDefIds = ACHIEVEMENT_DEFINITIONS.map(d => d.id);
@@ -482,6 +503,16 @@ export default function AchievementsScreen() {
             const definition = ACHIEVEMENT_DEFINITIONS.find(d => d.id === id);
             if (definition) {
               triggerLocalNotification('🏆 Trophy Unlocked!', `You unlocked: ${definition.title}`);
+            }
+          } else {
+            // Ensure existing streak achievements reflect the actual achievement completion month
+            if (['consistent_reader', 'half_year_streak', 'year_streak'].includes(id)) {
+              const currentUnlockedAt = achSnap.data()?.unlockedAt;
+              const currentTime = currentUnlockedAt?.toDate ? currentUnlockedAt.toDate().getTime() : 0;
+              const newTime = data.date.toDate().getTime();
+              if (currentTime !== newTime) {
+                await setDoc(achRef, { unlockedAt: data.date }, { merge: true });
+              }
             }
           }
         }
