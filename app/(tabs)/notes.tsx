@@ -5,6 +5,7 @@ import {
  } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 import { auth, db } from '../../firebaseConfig';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { 
@@ -26,6 +27,14 @@ interface Note {
   userId: string;
   createdAt: any;
   updatedAt: any;
+  bookId?: string | null;
+  bookTitle?: string | null;
+}
+
+interface SimpleBook {
+  id: string;
+  title: string;
+  author: string;
 }
 
 export default function NotesScreen() {
@@ -33,7 +42,12 @@ export default function NotesScreen() {
   const colors = theme === 'dark' ? darkColors : COLORS;
   const [user, setUser] = useState<User | null>(auth.currentUser);
 
+  const params = useLocalSearchParams<{ bookId?: string; bookTitle?: string }>();
+  const [filterBookId, setFilterBookId] = useState<string | null>(params.bookId || null);
+  const [filterBookTitle, setFilterBookTitle] = useState<string | null>(params.bookTitle || null);
+
   const [notes, setNotes] = useState<Note[]>([]);
+  const [userBooks, setUserBooks] = useState<SimpleBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -42,7 +56,13 @@ export default function NotesScreen() {
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [noteTitle, setNoteTitle] = useState('');
   const [noteContent, setNoteContent] = useState('');
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+  const [selectedBookTitle, setSelectedBookTitle] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Book Picker Modal
+  const [showBookPickerModal, setShowBookPickerModal] = useState(false);
+  const [bookSearchQuery, setBookSearchQuery] = useState('');
 
   // Delete Confirmation
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
@@ -54,6 +74,30 @@ export default function NotesScreen() {
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (params.bookId) {
+      setFilterBookId(params.bookId);
+      setFilterBookTitle(params.bookTitle || null);
+    }
+  }, [params.bookId, params.bookTitle]);
+
+  useEffect(() => {
+    if (!user) {
+      setUserBooks([]);
+      return;
+    }
+    const qBooks = query(collection(db, 'books'), where('userId', '==', user.uid));
+    const unsubBooks = onSnapshot(qBooks, (snapshot) => {
+      const booksData = snapshot.docs.map(d => ({
+        id: d.id,
+        title: d.data().title || 'Untitled',
+        author: d.data().author || '',
+      }));
+      setUserBooks(booksData);
+    });
+    return unsubBooks;
+  }, [user]);
 
   const fetchNotes = useCallback(() => {
     if (!user) {
@@ -76,6 +120,8 @@ export default function NotesScreen() {
           userId: data.userId,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
+          bookId: data.bookId || null,
+          bookTitle: data.bookTitle || null,
         };
       }) as Note[];
 
@@ -113,6 +159,8 @@ export default function NotesScreen() {
         title: noteTitle.trim(),
         content: noteContent.trim(),
         userId: user?.uid,
+        bookId: selectedBookId || null,
+        bookTitle: selectedBookTitle || null,
         updatedAt: Timestamp.now(),
       };
 
@@ -137,6 +185,8 @@ export default function NotesScreen() {
     setEditingNote(null);
     setNoteTitle('');
     setNoteContent('');
+    setSelectedBookId(null);
+    setSelectedBookTitle(null);
   };
 
   const openEditor = (note: Note | null = null) => {
@@ -144,8 +194,14 @@ export default function NotesScreen() {
       setEditingNote(note);
       setNoteTitle(note.title);
       setNoteContent(note.content);
+      setSelectedBookId(note.bookId || null);
+      setSelectedBookTitle(note.bookTitle || null);
     } else {
       resetForm();
+      if (filterBookId) {
+        setSelectedBookId(filterBookId);
+        setSelectedBookTitle(filterBookTitle);
+      }
     }
     setEditorVisible(true);
   };
@@ -166,10 +222,19 @@ export default function NotesScreen() {
     }
   };
 
-  const filteredNotes = notes.filter(n => 
-    n.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    n.content.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredNotes = notes.filter(n => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = 
+      n.title.toLowerCase().includes(q) || 
+      n.content.toLowerCase().includes(q) ||
+      (n.bookTitle && n.bookTitle.toLowerCase().includes(q));
+
+    if (!matchesSearch) return false;
+    if (filterBookId) {
+      return n.bookId === filterBookId;
+    }
+    return true;
+  });
 
   const renderNoteItem = ({ item, index }: { item: Note, index: number }) => {
     return (
@@ -183,14 +248,24 @@ export default function NotesScreen() {
           onPress={() => openEditor(item)}
           activeOpacity={0.7}
         >
-          {item.title ? (
-            <Text style={[styles.noteTitle, { color: colors.textDark }]} numberOfLines={1}>
-              {item.title}
+          <View>
+            {item.bookTitle ? (
+              <View style={[styles.noteBookBadge, { backgroundColor: colors.primary + '18' }]}>
+                <Ionicons name="book-outline" size={11} color={colors.primary} />
+                <Text style={[styles.noteBookBadgeText, { color: colors.primary }]} numberOfLines={1}>
+                  {item.bookTitle}
+                </Text>
+              </View>
+            ) : null}
+            {item.title ? (
+              <Text style={[styles.noteTitle, { color: colors.textDark }]} numberOfLines={1}>
+                {item.title}
+              </Text>
+            ) : null}
+            <Text style={[styles.noteContent, { color: colors.textLight }]} numberOfLines={4}>
+              {item.content}
             </Text>
-          ) : null}
-          <Text style={[styles.noteContent, { color: colors.textLight }]} numberOfLines={4}>
-            {item.content}
-          </Text>
+          </View>
           <View style={styles.noteFooter}>
             <Text style={[styles.noteDate, { color: colors.textLight }]}>
               {item.updatedAt?.toDate?.()?.toLocaleDateString() || 'Just now'}
@@ -231,6 +306,30 @@ export default function NotesScreen() {
           style={{ flex: 1 }}
         >
           <ScrollView contentContainerStyle={styles.editorScroll} showsVerticalScrollIndicator={false}>
+            <TouchableOpacity 
+              style={[styles.bookPickerTrigger, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => { setBookSearchQuery(''); setShowBookPickerModal(true); }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="book-outline" size={16} color={selectedBookTitle ? colors.primary : colors.textLight} />
+              <Text 
+                style={[styles.bookPickerText, { color: selectedBookTitle ? colors.textDark : colors.textLight }]} 
+                numberOfLines={1}
+              >
+                {selectedBookTitle ? `Book: ${selectedBookTitle}` : 'Link note to a book (optional)...'}
+              </Text>
+              {selectedBookTitle ? (
+                <TouchableOpacity 
+                  onPress={() => { setSelectedBookId(null); setSelectedBookTitle(null); }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close-circle" size={18} color={colors.textLight} />
+                </TouchableOpacity>
+              ) : (
+                <Ionicons name="chevron-forward" size={16} color={colors.textLight} />
+              )}
+            </TouchableOpacity>
+
             <TextInput
               style={[styles.titleInput, { color: colors.textDark }]}
               placeholder="Title"
@@ -252,6 +351,79 @@ export default function NotesScreen() {
             />
           </ScrollView>
         </KeyboardAvoidingView>
+
+        {/* BOOK PICKER MODAL IN EDITOR */}
+        <Modal visible={showBookPickerModal} transparent animationType="slide" onRequestClose={() => setShowBookPickerModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.pickerModalContent, { backgroundColor: colors.card }]}>
+              <View style={styles.pickerModalHeader}>
+                <Text style={[styles.pickerModalTitle, { color: colors.textDark }]}>Link to a Book</Text>
+                <TouchableOpacity onPress={() => setShowBookPickerModal(false)}>
+                  <Ionicons name="close" size={24} color={colors.textDark} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={[styles.pickerSearchBar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                <Ionicons name="search" size={16} color={colors.textLight} />
+                <TextInput 
+                  placeholder="Search your books..."
+                  placeholderTextColor={colors.textLight}
+                  style={[styles.pickerSearchInput, { color: colors.textDark }]}
+                  value={bookSearchQuery}
+                  onChangeText={setBookSearchQuery}
+                />
+              </View>
+
+              <ScrollView style={{ maxHeight: 320, width: '100%' }} showsVerticalScrollIndicator={false}>
+                <TouchableOpacity 
+                  style={[styles.bookPickerOption, !selectedBookId && { backgroundColor: colors.primary + '15' }]}
+                  onPress={() => {
+                    setSelectedBookId(null);
+                    setSelectedBookTitle(null);
+                    setShowBookPickerModal(false);
+                  }}
+                >
+                  <Ionicons name="document-text-outline" size={18} color={!selectedBookId ? colors.primary : colors.textLight} />
+                  <Text style={[styles.bookPickerOptionTitle, { color: !selectedBookId ? colors.primary : colors.textDark, fontWeight: !selectedBookId ? 'bold' : '600', marginLeft: 10, flex: 1 }]}>
+                    General Note (No Book)
+                  </Text>
+                  {!selectedBookId && (
+                    <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+
+                {userBooks
+                  .filter(b => b.title.toLowerCase().includes(bookSearchQuery.toLowerCase()) || b.author.toLowerCase().includes(bookSearchQuery.toLowerCase()))
+                  .map(b => (
+                    <TouchableOpacity 
+                      key={b.id}
+                      style={[styles.bookPickerOption, selectedBookId === b.id && { backgroundColor: colors.primary + '15' }]}
+                      onPress={() => {
+                        setSelectedBookId(b.id);
+                        setSelectedBookTitle(b.title);
+                        setShowBookPickerModal(false);
+                      }}
+                    >
+                      <Ionicons name="book" size={18} color={selectedBookId === b.id ? colors.primary : colors.textLight} />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={[styles.bookPickerOptionTitle, { color: selectedBookId === b.id ? colors.primary : colors.textDark, fontWeight: selectedBookId === b.id ? 'bold' : '600' }]} numberOfLines={1}>
+                          {b.title}
+                        </Text>
+                        {b.author ? (
+                          <Text style={[styles.bookPickerOptionAuthor, { color: colors.textLight }]} numberOfLines={1}>
+                            {b.author}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {selectedBookId === b.id && (
+                        <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -280,6 +452,29 @@ export default function NotesScreen() {
           />
         </View>
       </View>
+
+      {filterBookId ? (
+        <View style={[styles.filterBanner, { backgroundColor: colors.card, borderColor: colors.primary + '50' }]}>
+          <View style={styles.filterBannerLeft}>
+            <View style={[styles.filterIconBox, { backgroundColor: colors.primary + '20' }]}>
+              <Ionicons name="book" size={14} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.filterBannerLabel, { color: colors.textLight }]}>FILTERED BOOK</Text>
+              <Text style={[styles.filterBannerTitle, { color: colors.textDark }]} numberOfLines={1}>
+                {filterBookTitle || 'Selected Book'}
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity 
+            style={[styles.filterClearBtn, { backgroundColor: colors.primary + '15' }]}
+            onPress={() => { setFilterBookId(null); setFilterBookTitle(null); }}
+          >
+            <Text style={[styles.filterClearText, { color: colors.primary }]}>Show All</Text>
+            <Ionicons name="close-circle" size={14} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {loading ? (
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
@@ -356,6 +551,70 @@ const styles = StyleSheet.create({
   emptyText: { marginTop: 16, fontSize: 16, fontWeight: '600' },
   fab: { position: 'absolute', bottom: 100, right: 24, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 },
   
+  // Note Book Badge
+  noteBookBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  noteBookBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    maxWidth: 120,
+  },
+
+  // Filter Banner
+  filterBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 24,
+    marginBottom: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  filterBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  filterIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  filterBannerLabel: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  filterBannerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  filterClearBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  filterClearText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
   // Editor Styles
   editorContainer: { flex: 1 },
   editorHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
@@ -363,13 +622,77 @@ const styles = StyleSheet.create({
   doneBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
   doneBtnText: { fontSize: 15, fontWeight: '900' },
   editorScroll: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 100 },
+  bookPickerTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 8,
+  },
+  bookPickerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+  },
   titleInput: { fontSize: 28, fontWeight: '900', marginBottom: 12 },
   editorDivider: { height: 1, width: 40, marginBottom: 20, opacity: 0.2 },
   contentInput: { fontSize: 17, lineHeight: 26, minHeight: SCREEN_HEIGHT * 0.6 },
   
   // Modal Styles
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 40 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalContent: { width: '100%', borderRadius: 24, padding: 24, elevation: 10 },
   modalTitle: { fontSize: 20, fontWeight: '900' },
   smallBtn: { height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+
+  // Picker Modal Styles
+  pickerModalContent: {
+    width: '100%',
+    maxHeight: 460,
+    borderRadius: 24,
+    padding: 20,
+    elevation: 10,
+  },
+  pickerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  pickerModalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  pickerSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  pickerSearchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  bookPickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 6,
+  },
+  bookPickerOptionTitle: {
+    fontSize: 14,
+  },
+  bookPickerOptionAuthor: {
+    fontSize: 11,
+    marginTop: 2,
+  },
 });
