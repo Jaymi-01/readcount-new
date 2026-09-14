@@ -10,8 +10,57 @@ import { useTheme } from '../../context/ThemeContext';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming, withSequence } from 'react-native-reanimated';
 import { triggerLocalNotification } from '../../utils/notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+function toValidDate(date: any): Date {
+  if (!date) return new Date();
+  if (date instanceof Date) return isNaN(date.getTime()) ? new Date() : date;
+  if (date.toDate && typeof date.toDate === 'function') {
+    try {
+      const d = date.toDate();
+      if (d instanceof Date && !isNaN(d.getTime())) return d;
+    } catch {}
+  }
+  if (typeof date.seconds === 'number') {
+    const d = new Date(date.seconds * 1000);
+    if (!isNaN(d.getTime())) return d;
+  }
+  try {
+    const d = new Date(date);
+    if (!isNaN(d.getTime())) return d;
+  } catch {}
+  return new Date();
+}
+
+function getBookDate(b: any): Date {
+  if (!b) return new Date();
+  if (b.processedDate) return toValidDate(b.processedDate);
+  return toValidDate(b.dateFinished || b.dateAdded);
+}
+
+function getSeason(month: number): number {
+  if (typeof month !== 'number' || isNaN(month)) return 0;
+  if (month === 11 || month === 0 || month === 1) return 0; // Winter: Dec, Jan, Feb
+  if (month >= 2 && month <= 4) return 1; // Spring: Mar, Apr, May
+  if (month >= 5 && month <= 7) return 2; // Summer: Jun, Jul, Aug
+  return 3; // Autumn: Sep, Oct, Nov
+}
+
+function getWeekendKey(d?: Date | null): string | null {
+  if (!d || !(d instanceof Date) || isNaN(d.getTime())) return null;
+  const day = d.getDay();
+  if (day === 6) { // Saturday
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  } else if (day === 0) { // Sunday (same weekend as previous Saturday)
+    const sat = new Date(d);
+    sat.setDate(d.getDate() - 1);
+    return `${sat.getFullYear()}-${sat.getMonth()}-${sat.getDate()}`;
+  }
+  return null;
+}
 
 interface Achievement {
   id: string;
@@ -32,21 +81,27 @@ interface Book {
   userId: string;
   title: string;
   author: string;
-  status: 'read' | 'reading' | 'toread';
+  status: 'read' | 'reading' | 'toread' | 'dnf';
   dateAdded: any;
   dateFinished?: any;
   dateStartedReading?: any;
+  dateDnf?: any;
   rating?: number;
   review?: string;
   genre?: string;
+  format?: 'physical' | 'ebook' | 'audiobook';
+  series?: string;
+  seriesOrder?: number;
   processedDate: Date;
 }
 
 const CATEGORIES = [
   { id: 'basics', title: 'THE JOURNEY BEGINS' },
   { id: 'habits', title: 'DAILY RITUALS' },
-  { id: 'speed', title: 'SPEED MILESTONES' },
+  { id: 'speed', title: 'SPEED & PACING' },
   { id: 'streaks', title: 'CONSISTENCY MATTERS' },
+  { id: 'formats', title: 'FORMATS & MEDIUMS' },
+  { id: 'series', title: 'SERIES & SAGAS' },
   { id: 'variety', title: 'VARIETY & EXPLORATION' },
   { id: 'critics', title: 'CRITIC CIRCLE' },
   { id: 'collection', title: 'SHELF MASTER' },
@@ -62,28 +117,48 @@ const ACHIEVEMENT_DEFINITIONS: Achievement[] = [
   { id: 'silver_milestone', category: 'basics', title: 'Silver Milestone', desc: 'Read 25 books in total', howToEarn: 'marking 25 books as read.', icon: 'ribbon', total: 25, unlocked: false },
   { id: 'gold_milestone', category: 'basics', title: 'Gold Milestone', desc: 'Read 50 books in total', howToEarn: 'marking 50 books as read.', icon: 'trophy', total: 50, unlocked: false },
   { id: 'diamond_milestone', category: 'basics', title: 'Diamond Milestone', desc: 'Read 100 books in total', howToEarn: 'marking 100 books as read.', icon: 'sparkles', total: 100, unlocked: false },
+  { id: 'vault_keeper', category: 'basics', title: 'Vault Keeper', desc: 'Set up a PIN or Biometric lock', howToEarn: 'protecting your library by enabling a PIN or Biometrics in Settings.', icon: 'lock-closed-outline', unlocked: false },
+  { id: 'proud_reader', category: 'basics', title: 'Proud Reader', desc: 'Share your Reading Wrapped card', howToEarn: 'sharing your Reading Wrapped card with friends.', icon: 'share-social-outline', unlocked: false },
   
   { id: 'weekend_warrior', category: 'habits', title: 'Weekend Warrior', desc: 'Finish a book on the weekend', howToEarn: 'completing a book on a Saturday or Sunday.', icon: 'cafe', unlocked: false },
   { id: 'morning_reader', category: 'habits', title: 'Early Bird', desc: 'Finish a book before 9 AM', howToEarn: 'completing a book early in the morning.', icon: 'alarm', unlocked: false },
   { id: 'night_owl', category: 'habits', title: 'Night Owl', desc: 'Add a book after 11 PM', howToEarn: 'starting a new book late at night.', icon: 'owl', iconFamily: 'MaterialCommunityIcons', unlocked: false },
   { id: 'first_note', category: 'habits', title: 'Draftsman', desc: 'Write your first reading note', howToEarn: 'writing your first reading note.', icon: 'pencil-outline', unlocked: false },
+  { id: 'annotator_notes', category: 'habits', title: 'Annotator', desc: 'Write 5 reading notes', howToEarn: 'writing 5 reading notes in total.', icon: 'document-text', total: 5, unlocked: false },
   { id: 'deep_thinker', category: 'habits', title: 'Deep Thinker', desc: 'Write 10 notes across your books', howToEarn: 'writing 10 reading notes.', icon: 'bulb-outline', total: 10, unlocked: false },
+  { id: 'chronicler', category: 'habits', title: 'The Chronicler', desc: 'Write 25 notes in total', howToEarn: 'writing 25 reading notes in total.', icon: 'journal', total: 25, unlocked: false },
+  { id: 'the_philosopher', category: 'habits', title: 'The Philosopher', desc: 'Write 50 notes in total', howToEarn: 'writing 50 notes across your reading journey.', icon: 'bulb-outline', total: 50, unlocked: false },
+  { id: 'marginalia_master', category: 'habits', title: 'Marginalia Master', desc: 'Write 5+ notes on a single book', howToEarn: 'writing 5 reading notes linked to the same book.', icon: 'create-outline', total: 5, unlocked: false },
+  { id: 'librarians_index', category: 'habits', title: "Librarian's Index", desc: 'Write notes across 5 different books', howToEarn: 'adding notes to at least 5 distinct books in your library.', icon: 'library-outline', total: 5, unlocked: false },
   { id: 'goal_setter', category: 'habits', title: 'Goal Setter', desc: 'Set your annual reading goal', howToEarn: 'updating your annual reading goal in settings.', icon: 'flag', unlocked: false },
   { id: 'lunch_reader', category: 'habits', title: 'Lunch Break', desc: 'Finish a book between 12 PM and 2 PM', howToEarn: 'finishing a book during lunch hours.', icon: 'pizza', unlocked: false },
   { id: 'midnight_reader', category: 'habits', title: 'Midnight Marathon', desc: 'Finish a book between 12 AM and 4 AM', howToEarn: 'finishing a book late at night.', icon: 'moon', unlocked: false },
-  { id: 'annotator_notes', category: 'habits', title: 'Annotator', desc: 'Write 5 reading notes', howToEarn: 'writing 5 reading notes in total.', icon: 'document-text', total: 5, unlocked: false },
-  { id: 'chronicler', category: 'habits', title: 'The Chronicler', desc: 'Write 25 notes in total', howToEarn: 'writing 25 reading notes in total.', icon: 'journal', total: 25, unlocked: false },
+  { id: 'new_year_pages', category: 'habits', title: 'New Year, New Pages', desc: 'Finish a book in January', howToEarn: 'finishing a book during the month of January.', icon: 'sparkles-outline', unlocked: false },
+  { id: 'four_seasons', category: 'habits', title: 'Four Seasons', desc: 'Finish a book in every season', howToEarn: 'finishing at least one book in Winter, Spring, Summer, and Autumn.', icon: 'planet-outline', total: 4, unlocked: false },
+  { id: 'holiday_reader', category: 'habits', title: 'Holiday Reader', desc: 'Finish a book during holiday week', howToEarn: 'finishing a book between December 24th and December 31st.', icon: 'gift-outline', unlocked: false },
 
   { id: 'speedy_reader', category: 'speed', title: 'Speedy Reader', desc: 'Finish 5 books in a month', howToEarn: 'finishing 5 books in a single month.', icon: 'walk', total: 5, unlocked: false },
   { id: 'speed_demon', category: 'speed', title: 'Speed Demon', desc: 'Finish 10 books in a month', howToEarn: 'finishing 10 books in a single month.', icon: 'bicycle', total: 10, unlocked: false },
   { id: 'speed_god', category: 'speed', title: 'Speed God', desc: 'Finish 30 books in a month', howToEarn: 'finishing 30 books in a single month! Absolute legend.', icon: 'flame', total: 30, unlocked: false },
-  { id: 'book_devourer', category: 'speed', title: 'Book Devourer', desc: 'Finish a book within 48 hours of starting it', howToEarn: 'finishing a book within 48 hours of starting it.', icon: 'restaurant', unlocked: false },
-  { id: 'book_blitzer', category: 'speed', title: 'Book Blitzer', desc: 'Finish a book within 24 hours of starting it', howToEarn: 'finishing a book within 24 hours of starting it.', icon: 'flash', unlocked: false },
+  { id: 'book_devourer', category: 'speed', title: 'Book Devourer', desc: 'Finish a book within 48 hours', howToEarn: 'finishing a book within 48 hours of starting it.', icon: 'restaurant', unlocked: false },
+  { id: 'book_blitzer', category: 'speed', title: 'Book Blitzer', desc: 'Finish a book within 24 hours', howToEarn: 'finishing a book within 24 hours of starting it.', icon: 'flash', unlocked: false },
+  { id: 'slow_burn', category: 'speed', title: 'Slow Burn', desc: 'Finish a book that took 90+ days', howToEarn: 'completing a book that took at least 90 days from start to finish.', icon: 'hourglass-outline', unlocked: false },
+  { id: 'double_feature_day', category: 'speed', title: 'Double Feature Day', desc: 'Finish 2 books on the same day', howToEarn: 'marking two books as finished on the same calendar day.', icon: 'flash-outline', total: 2, unlocked: false },
+  { id: 'weekend_binge', category: 'speed', title: 'Weekend Binge', desc: 'Finish 2 books over a weekend', howToEarn: 'finishing 2 books over a Saturday and Sunday.', icon: 'beer-outline', total: 2, unlocked: false },
 
   { id: 'consistent_reader', category: 'streaks', title: '3 Month Streak', desc: 'Read at least 1 book for 3 months', howToEarn: 'finishing at least one book for 3 months in a row.', icon: 'calendar', total: 3, unlocked: false },
   { id: 'half_year_streak', category: 'streaks', title: '6 Month Streak', desc: 'Read at least 1 book for 6 months', howToEarn: 'finishing at least one book for 6 months in a row.', icon: 'calendar-number', total: 6, unlocked: false },
   { id: 'year_streak', category: 'streaks', title: 'The Yearly Cycle', desc: 'Read at least 1 book for 12 months', howToEarn: 'finishing at least one book every month for an entire year!', icon: 'infinite', total: 12, unlocked: false },
   
+  { id: 'format_trifecta', category: 'formats', title: 'Format Trifecta', desc: 'Read physical, e-book, & audio', howToEarn: 'reading at least one physical book, one e-book, and one audiobook.', icon: 'layers-outline', total: 3, unlocked: false },
+  { id: 'audio_aficionado', category: 'formats', title: 'Audio Aficionado', desc: 'Complete 5 audiobooks', howToEarn: 'listening to and finishing 5 audiobooks.', icon: 'headset-outline', total: 5, unlocked: false },
+  { id: 'digital_nomad', category: 'formats', title: 'Digital Nomad', desc: 'Complete 10 e-books', howToEarn: 'reading and finishing 10 e-books.', icon: 'tablet-portrait-outline', total: 10, unlocked: false },
+  { id: 'paper_purist', category: 'formats', title: 'Paper Purist', desc: 'Complete 10 physical books', howToEarn: 'reading and finishing 10 physical books.', icon: 'book-outline', total: 10, unlocked: false },
+
+  { id: 'series_starter', category: 'series', title: 'Series Starter', desc: 'Start Book 1 of any series', howToEarn: 'adding or reading a book marked as Book 1 in a series.', icon: 'bookmark-outline', unlocked: false },
+  { id: 'trilogy_conqueror', category: 'series', title: 'Trilogy Conqueror', desc: 'Finish Books 1, 2, and 3 of a series', howToEarn: 'reading books 1, 2, and 3 of any single series.', icon: 'albums-outline', total: 3, unlocked: false },
+  { id: 'saga_finisher', category: 'series', title: 'Saga Finisher', desc: 'Finish 5 books in a single series', howToEarn: 'reading at least 5 books in the same series.', icon: 'shield-checkmark-outline', total: 5, unlocked: false },
+
   { id: 'double_feature', category: 'variety', title: 'Double Feature', desc: 'Reading 2 books at once', howToEarn: 'having two different books in your "Reading" list.', icon: 'albums', total: 2, unlocked: false },
   { id: 'author_bestie', category: 'variety', title: "Author's Bestie", desc: 'Read 5 books by one author', howToEarn: 'reading 5 books by the same author.', icon: 'people', total: 5, unlocked: false },
   { id: 'the_polymath', category: 'variety', title: 'The Polymath', desc: 'Read 5 different authors', howToEarn: 'reading books from 5 different authors.', icon: 'globe', total: 5, unlocked: false },
@@ -100,12 +175,17 @@ const ACHIEVEMENT_DEFINITIONS: Achievement[] = [
   { id: 'honest_critic', category: 'critics', title: 'Honest Critic', desc: 'Give a book a 1-star rating', howToEarn: 'giving a book an honest 1-star rating.', icon: 'thumbs-down', unlocked: false },
   { id: 'balanced_critic', category: 'critics', title: 'Balanced Critic', desc: 'Rate books 1, 3, and 5 stars', howToEarn: 'rating books with 1, 3, and 5 stars.', icon: 'shapes', total: 3, unlocked: false },
   { id: 'generous_soul', category: 'critics', title: 'Generous Soul', desc: 'Give 5 books a perfect 5-star rating', howToEarn: 'giving 5 books a 5-star rating.', icon: 'happy', total: 5, unlocked: false },
+  { id: 'full_spectrum', category: 'critics', title: 'Full Spectrum', desc: 'Rate books in all 5 star tiers', howToEarn: 'giving ratings for 1, 2, 3, 4, and 5 stars across your library.', icon: 'color-wand-outline', total: 5, unlocked: false },
+  { id: 'the_golden_mean', category: 'critics', title: 'The Golden Mean', desc: 'Rate 5 books 3 stars', howToEarn: 'giving 5 books a solid 3-star rating.', icon: 'thumbs-up-outline', total: 5, unlocked: false },
+  { id: 'five_star_fanatic', category: 'critics', title: 'Five-Star Fanatic', desc: 'Rate 10 books 5 stars', howToEarn: 'giving 10 books a 5-star rating.', icon: 'star-outline', total: 10, unlocked: false },
 
   { id: 'indecisive', category: 'collection', title: 'Indecisive', desc: 'Have 3 books in To-Read', howToEarn: 'having 3 books in your To-Read list.', icon: 'help-circle', total: 3, unlocked: false },
   { id: 'cant_make_up_mind', category: 'collection', title: "Can't Make Up Your Mind", desc: 'Have 5 books in To-Read', howToEarn: 'having 5 books in your To-Read list.', icon: 'git-branch', total: 5, unlocked: false },
   { id: 'the_archivist', category: 'collection', title: 'The Archivist', desc: 'Have 10 books in To-Read', howToEarn: 'having 10 books in your To-Read list.', icon: 'layers', total: 10, unlocked: false },
   { id: 'book_collector', category: 'collection', title: 'Book Collector', desc: 'Add 50 books to your library', howToEarn: 'having 50 books in your library in total.', icon: 'library', total: 50, unlocked: false },
   { id: 'perfect_balance', category: 'collection', title: 'Perfect Balance', desc: 'Have exactly 5 books in To-Read, Reading, and Read', howToEarn: 'having exactly 5 books in To-Read, 5 in Reading, and 5 in Read lists at the same time.', icon: 'grid', unlocked: false },
+  { id: 'lifes_too_short', category: 'collection', title: "Life's Too Short", desc: 'Mark a book as DNF', howToEarn: "marking a book as DNF — honoring your time and reading taste!", icon: 'close-circle-outline', unlocked: false },
+  { id: 'discerning_taste', category: 'collection', title: 'Discerning Taste', desc: 'Mark 3 books as DNF', howToEarn: 'marking 3 books as DNF.', icon: 'hand-left-outline', total: 3, unlocked: false },
 ];
 
 function TrophyItem({ item, colors, onDetails, isGodModeUser }: { item: Achievement, colors: any, onDetails: (a: Achievement) => void, isGodModeUser: boolean }) {
@@ -167,6 +247,9 @@ export default function AchievementsScreen() {
   const [unlockedData, setUnlockedData] = useState<{[key: string]: any}>({});
   const [allBooks, setAllBooks] = useState<Book[]>([]);
   const [notesCount, setNotesCount] = useState(0);
+  const [notesList, setNotesList] = useState<any[]>([]);
+  const [userDocData, setUserDocData] = useState<any>(null);
+  const [hasLocalPinState, setHasLocalPinState] = useState(false);
   const [yearlyGoal, setYearlyGoal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedAch, setSelectedAch] = useState<Achievement | null>(null);
@@ -177,6 +260,17 @@ export default function AchievementsScreen() {
       setUser(u);
     });
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const checkLocalPin = async () => {
+      try {
+        const isSecureAvailable = Platform.OS !== 'web' && await SecureStore.isAvailableAsync();
+        const pin = isSecureAvailable ? await SecureStore.getItemAsync('app_passlock_pin') : await AsyncStorage.getItem('app_passlock_pin_fallback');
+        if (pin) setHasLocalPinState(true);
+      } catch {}
+    };
+    checkLocalPin();
   }, []);
 
   const backfillAchievements = useCallback(async () => {
@@ -191,11 +285,7 @@ export default function AchievementsScreen() {
 
       const allBooks: Book[] = allSnap.docs.map(doc => {
         const d = doc.data();
-        let date = d.dateFinished || d.dateAdded;
-        let processedDate = new Date();
-        if (date?.toDate) processedDate = date.toDate();
-        else if (date?.seconds) processedDate = new Date(date.seconds * 1000);
-        else processedDate = new Date(date);
+        const processedDate = toValidDate(d.dateFinished || d.dateAdded);
         return { ...d, id: doc.id, processedDate } as Book;
       }).sort((a, b) => a.processedDate.getTime() - b.processedDate.getTime());
 
@@ -449,6 +539,177 @@ export default function AchievementsScreen() {
         toUnlock['generous_soul'] = { date: Timestamp.fromDate(fiveStarBooksBackfill[4].processedDate) };
       }
 
+      // App Power-User backfill
+      let hasLocalPin = false;
+      try {
+        const isSecureAvailable = Platform.OS !== 'web' && await SecureStore.isAvailableAsync();
+        const pin = isSecureAvailable ? await SecureStore.getItemAsync('app_passlock_pin') : await AsyncStorage.getItem('app_passlock_pin_fallback');
+        if (pin) hasLocalPin = true;
+      } catch {}
+      if (userData?.appLockPin || userData?.biometricEnabled || userData?.hasPin || hasLocalPin) {
+        toUnlock['vault_keeper'] = { date: Timestamp.now() };
+      }
+      if (userData?.sharedCard || userData?.wrappedShared) {
+        toUnlock['proud_reader'] = { date: Timestamp.now() };
+      }
+
+      // Formats & Mediums backfill
+      const hasPhysical = readBooks.find(b => b.format === 'physical' || !b.format);
+      const hasEbook = readBooks.find(b => b.format === 'ebook');
+      const hasAudio = readBooks.find(b => b.format === 'audiobook');
+      if (hasPhysical && hasEbook && hasAudio) {
+        const latestFormatDate = Math.max(hasPhysical.processedDate.getTime(), hasEbook.processedDate.getTime(), hasAudio.processedDate.getTime());
+        toUnlock['format_trifecta'] = { date: Timestamp.fromDate(new Date(latestFormatDate)) };
+      }
+      const audioBooks = readBooks.filter(b => b.format === 'audiobook');
+      if (audioBooks.length >= 5) {
+        toUnlock['audio_aficionado'] = { date: Timestamp.fromDate(audioBooks[4].processedDate) };
+      }
+      const ebooks = readBooks.filter(b => b.format === 'ebook');
+      if (ebooks.length >= 10) {
+        toUnlock['digital_nomad'] = { date: Timestamp.fromDate(ebooks[9].processedDate) };
+      }
+      const physicalBooks = readBooks.filter(b => b.format === 'physical' || !b.format);
+      if (physicalBooks.length >= 10) {
+        toUnlock['paper_purist'] = { date: Timestamp.fromDate(physicalBooks[9].processedDate) };
+      }
+
+      // Series & Sagas backfill
+      const seriesStarterBook = allBooks.find(b => b.series && b.series.trim() !== '' && b.seriesOrder === 1 && (b.status === 'reading' || b.status === 'read'));
+      if (seriesStarterBook) {
+        toUnlock['series_starter'] = { date: Timestamp.fromDate(seriesStarterBook.processedDate) };
+      }
+      const seriesOrdersMap: { [seriesName: string]: { orders: Set<number>, latestDate: Date } } = {};
+      const seriesCountsMap: { [seriesName: string]: Book[] } = {};
+      for (const b of readBooks) {
+        if (b.series && b.series.trim()) {
+          const sName = b.series.trim().toLowerCase();
+          if (!seriesOrdersMap[sName]) seriesOrdersMap[sName] = { orders: new Set(), latestDate: b.processedDate };
+          if (b.seriesOrder) seriesOrdersMap[sName].orders.add(b.seriesOrder);
+          seriesOrdersMap[sName].latestDate = b.processedDate;
+
+          if (!seriesCountsMap[sName]) seriesCountsMap[sName] = [];
+          seriesCountsMap[sName].push(b);
+
+          if (seriesOrdersMap[sName].orders.has(1) && seriesOrdersMap[sName].orders.has(2) && seriesOrdersMap[sName].orders.has(3) && !toUnlock['trilogy_conqueror']) {
+            toUnlock['trilogy_conqueror'] = { date: Timestamp.fromDate(b.processedDate) };
+          }
+          if (seriesCountsMap[sName].length === 5 && !toUnlock['saga_finisher']) {
+            toUnlock['saga_finisher'] = { date: Timestamp.fromDate(b.processedDate) };
+          }
+        }
+      }
+
+      // Notes Depth backfill
+      const notesPerBook: { [bookId: string]: number } = {};
+      const distinctBooksWithNotes = new Set<string>();
+      notesSnap.forEach(dDoc => {
+        const d = dDoc.data();
+        if (d.bookId) {
+          distinctBooksWithNotes.add(d.bookId);
+          notesPerBook[d.bookId] = (notesPerBook[d.bookId] || 0) + 1;
+          if (notesPerBook[d.bookId] === 5 && !toUnlock['marginalia_master']) {
+            const cDate = d.createdAt || d.updatedAt;
+            let dVal = Timestamp.now();
+            if (cDate?.toDate) dVal = Timestamp.fromDate(cDate.toDate());
+            else if (cDate?.seconds) dVal = Timestamp.fromDate(new Date(cDate.seconds * 1000));
+            else if (cDate) dVal = Timestamp.fromDate(new Date(cDate));
+            toUnlock['marginalia_master'] = { date: dVal };
+          }
+        }
+      });
+      if (distinctBooksWithNotes.size >= 5 && !toUnlock['librarians_index']) {
+        toUnlock['librarians_index'] = { date: Timestamp.now() };
+      }
+      if (notesCountVal >= 50 && !toUnlock['the_philosopher']) {
+        toUnlock['the_philosopher'] = { date: Timestamp.now() };
+      }
+
+      // DNF backfill
+      const dnfBooks = allBooks.filter(b => b.status === 'dnf');
+      if (dnfBooks.length >= 1) {
+        toUnlock['lifes_too_short'] = { date: Timestamp.fromDate(dnfBooks[0].processedDate) };
+      }
+      if (dnfBooks.length >= 3) {
+        toUnlock['discerning_taste'] = { date: Timestamp.fromDate(dnfBooks[2].processedDate) };
+      }
+
+      // Slow Burn backfill
+      const slowBurnBook = readBooks.find(b => {
+        if (!b.dateStartedReading || !b.dateFinished) return false;
+        let start = b.dateStartedReading;
+        let finish = b.dateFinished;
+        if (start.toDate) start = start.toDate(); else start = new Date(start);
+        if (finish.toDate) finish = finish.toDate(); else finish = new Date(finish);
+        const diffMs = finish.getTime() - start.getTime();
+        return diffMs >= 90 * 24 * 60 * 60 * 1000;
+      });
+      if (slowBurnBook) {
+        toUnlock['slow_burn'] = { date: Timestamp.fromDate(slowBurnBook.processedDate) };
+      }
+
+      // Double Feature Day & Weekend Binge backfill
+      const dayFinishedMap: { [dayKey: string]: Book[] } = {};
+      const weekendFinishedMap: { [wKey: string]: Book[] } = {};
+      readBooks.forEach(b => {
+        const d = b.processedDate;
+        const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        if (!dayFinishedMap[dayKey]) dayFinishedMap[dayKey] = [];
+        dayFinishedMap[dayKey].push(b);
+        if (dayFinishedMap[dayKey].length === 2 && !toUnlock['double_feature_day']) {
+          toUnlock['double_feature_day'] = { date: Timestamp.fromDate(d) };
+        }
+
+        const wKey = getWeekendKey(d);
+        if (wKey) {
+          if (!weekendFinishedMap[wKey]) weekendFinishedMap[wKey] = [];
+          weekendFinishedMap[wKey].push(b);
+          if (weekendFinishedMap[wKey].length === 2 && !toUnlock['weekend_binge']) {
+            toUnlock['weekend_binge'] = { date: Timestamp.fromDate(d) };
+          }
+        }
+      });
+
+      // Seasons & Calendar backfill
+      const janBook = readBooks.find(b => b.processedDate.getMonth() === 0);
+      if (janBook) {
+        toUnlock['new_year_pages'] = { date: Timestamp.fromDate(janBook.processedDate) };
+      }
+
+      const seasonsSet = new Set<number>();
+      for (const b of readBooks) {
+        seasonsSet.add(getSeason(b.processedDate.getMonth()));
+        if (seasonsSet.size === 4 && !toUnlock['four_seasons']) {
+          toUnlock['four_seasons'] = { date: Timestamp.fromDate(b.processedDate) };
+        }
+      }
+
+      const holidayBook = readBooks.find(b => {
+        const m = b.processedDate.getMonth();
+        const d = b.processedDate.getDate();
+        return m === 11 && d >= 24 && d <= 31;
+      });
+      if (holidayBook) {
+        toUnlock['holiday_reader'] = { date: Timestamp.fromDate(holidayBook.processedDate) };
+      }
+
+      // Rating Nuances backfill
+      const allRatings = readBooks.map(b => b.rating).filter((r): r is number => typeof r === 'number' && r >= 1 && r <= 5);
+      const starSet = new Set(allRatings);
+      if ([1, 2, 3, 4, 5].every(s => starSet.has(s)) && !toUnlock['full_spectrum']) {
+        toUnlock['full_spectrum'] = { date: Timestamp.now() };
+      }
+
+      const threeStarBooks = readBooks.filter(b => b.rating === 3);
+      if (threeStarBooks.length >= 5) {
+        toUnlock['the_golden_mean'] = { date: Timestamp.fromDate(threeStarBooks[4].processedDate) };
+      }
+
+      const tenFiveStarBooks = readBooks.filter(b => b.rating === 5);
+      if (tenFiveStarBooks.length >= 10) {
+        toUnlock['five_star_fanatic'] = { date: Timestamp.fromDate(tenFiveStarBooks[9].processedDate) };
+      }
+
       // Streaks logic for backfill (Forward-chronological streak calculation)
       // Map each month with read books, saving the latest finished date in that month
       const monthBookMap = new Map<number, Date>();
@@ -531,16 +792,22 @@ export default function AchievementsScreen() {
     });
     const qBooks = query(collection(db, 'books'), where('userId', '==', user.uid));
     const unsubscribeBooks = onSnapshot(qBooks, (snapshot) => {
-      const books = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Book));
+      const books = snapshot.docs.map(doc => {
+        const d = doc.data();
+        const processedDate = toValidDate(d.dateFinished || d.dateAdded);
+        return { ...d, id: doc.id, processedDate } as Book;
+      }).sort((a, b) => a.processedDate.getTime() - b.processedDate.getTime());
       setAllBooks(books);
     });
     const qNotes = query(collection(db, 'notes'), where('userId', '==', user.uid));
     const unsubscribeNotes = onSnapshot(qNotes, (snapshot) => {
       setNotesCount(snapshot.size);
+      setNotesList(snapshot.docs.map(d => d.data()));
     });
     const unsubscribeUser = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
+        setUserDocData(data);
         const startYear = data.dateAdded?.toDate ? data.dateAdded.toDate().getFullYear() : 2025;
         const currentYearStr = new Date().getFullYear().toString();
         const goalForYear = data.readingGoals?.[currentYearStr] ?? (currentYearStr === startYear.toString() ? (data.readingGoal ?? 0) : 0);
@@ -572,10 +839,7 @@ export default function AchievementsScreen() {
 
     const now = new Date();
     const thisMonthCount = readBooks.filter(b => {
-      let d = b.dateFinished || b.dateAdded;
-      if (d?.toDate) d = d.toDate();
-      else if (d?.seconds) d = new Date(d.seconds * 1000);
-      else d = new Date(d);
+      const d = getBookDate(b);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }).length;
     prog['speedy_reader'] = Math.min(thisMonthCount, 5);
@@ -588,10 +852,7 @@ export default function AchievementsScreen() {
 
     const monthMap: any = {};
     readBooks.forEach(b => {
-      let d = b.dateFinished || b.dateAdded;
-      if (d?.toDate) d = d.toDate();
-      else if (d?.seconds) d = new Date(d.seconds * 1000);
-      else d = new Date(d);
+      const d = getBookDate(b);
       monthMap[`${d.getFullYear()}-${d.getMonth()}`] = true;
     });
     let streak = 0;
@@ -652,28 +913,34 @@ export default function AchievementsScreen() {
     prog['diamond_milestone'] = Math.min(rCount, 100);
 
     const hasLunch = readBooks.some(b => {
-      let d = b.dateFinished || b.dateAdded;
-      if (!d) return false;
-      if (d.toDate) d = d.toDate(); else if (d.seconds) d = new Date(d.seconds * 1000); else d = new Date(d);
-      const hour = d.getHours();
+      const hour = getBookDate(b).getHours();
       return hour >= 12 && hour < 14;
     });
     prog['lunch_reader'] = hasLunch ? 1 : 0;
 
     const hasMidnight = readBooks.some(b => {
-      let d = b.dateFinished || b.dateAdded;
-      if (!d) return false;
-      if (d.toDate) d = d.toDate(); else if (d.seconds) d = new Date(d.seconds * 1000); else d = new Date(d);
-      const hour = d.getHours();
+      const hour = getBookDate(b).getHours();
       return hour >= 0 && hour < 4;
     });
     prog['midnight_reader'] = hasMidnight ? 1 : 0;
 
-    // new note progress
+    // notes depth progress
     prog['annotator_notes'] = Math.min(notesCount, 5);
     prog['chronicler'] = Math.min(notesCount, 25);
+    prog['the_philosopher'] = Math.min(notesCount, 50);
 
-    // new rating progress
+    const notesPerBookLive: { [bookId: string]: number } = {};
+    const distinctBooksLive = new Set<string>();
+    notesList.forEach(n => {
+      if (n.bookId) {
+        distinctBooksLive.add(n.bookId);
+        notesPerBookLive[n.bookId] = (notesPerBookLive[n.bookId] || 0) + 1;
+      }
+    });
+    prog['marginalia_master'] = Math.min(Math.max(...Object.values(notesPerBookLive), 0), 5);
+    prog['librarians_index'] = Math.min(distinctBooksLive.size, 5);
+
+    // rating progress
     const currentRatings = readBooks.map(b => b.rating).filter((r): r is number => typeof r === 'number' && r > 0);
     const hasCurrent1 = currentRatings.includes(1);
     const hasCurrent3 = currentRatings.includes(3);
@@ -686,6 +953,79 @@ export default function AchievementsScreen() {
 
     const fiveStarCount = readBooks.filter(b => b.rating === 5).length;
     prog['generous_soul'] = Math.min(fiveStarCount, 5);
+    prog['five_star_fanatic'] = Math.min(fiveStarCount, 10);
+    prog['the_golden_mean'] = Math.min(readBooks.filter(b => b.rating === 3).length, 5);
+    const distinctStarsLive = new Set(readBooks.map(b => b.rating).filter((r): r is number => typeof r === 'number' && r >= 1 && r <= 5)).size;
+    prog['full_spectrum'] = Math.min(distinctStarsLive, 5);
+
+    // Formats & Mediums progress
+    const formatTypes = new Set(readBooks.map(b => b.format || 'physical').filter(f => f === 'physical' || f === 'ebook' || f === 'audiobook')).size;
+    prog['format_trifecta'] = Math.min(formatTypes, 3);
+    prog['audio_aficionado'] = Math.min(readBooks.filter(b => b.format === 'audiobook').length, 5);
+    prog['digital_nomad'] = Math.min(readBooks.filter(b => b.format === 'ebook').length, 10);
+    prog['paper_purist'] = Math.min(readBooks.filter(b => b.format === 'physical' || !b.format).length, 10);
+
+    // Series & Sagas progress
+    prog['series_starter'] = allBooks.some(b => b.series && b.series.trim() !== '' && b.seriesOrder === 1 && (b.status === 'reading' || b.status === 'read')) ? 1 : 0;
+    let maxTrilogy = 0;
+    const seriesLiveOrders: { [seriesName: string]: Set<number> } = {};
+    const seriesLiveCounts: { [seriesName: string]: number } = {};
+    for (const b of readBooks) {
+      if (b.series && b.series.trim()) {
+        const sName = b.series.trim().toLowerCase();
+        seriesLiveCounts[sName] = (seriesLiveCounts[sName] || 0) + 1;
+        if (!seriesLiveOrders[sName]) seriesLiveOrders[sName] = new Set();
+        if (b.seriesOrder) seriesLiveOrders[sName].add(b.seriesOrder);
+        const count123 = [1, 2, 3].filter(o => seriesLiveOrders[sName].has(o)).length;
+        if (count123 > maxTrilogy) maxTrilogy = count123;
+      }
+    }
+    prog['trilogy_conqueror'] = maxTrilogy;
+    prog['saga_finisher'] = Math.min(Math.max(...Object.values(seriesLiveCounts), 0), 5);
+
+    // Realistic Habits (DNF) progress
+    const dnfCountLive = allBooks.filter(b => b.status === 'dnf').length;
+    prog['lifes_too_short'] = dnfCountLive >= 1 ? 1 : 0;
+    prog['discerning_taste'] = Math.min(dnfCountLive, 3);
+
+    // Pacing & Speed
+    const hasSlowBurnLive = readBooks.some(b => {
+      if (!b.dateStartedReading || !b.dateFinished) return false;
+      const start = toValidDate(b.dateStartedReading);
+      const finish = toValidDate(b.dateFinished);
+      const diffMs = finish.getTime() - start.getTime();
+      return diffMs >= 90 * 24 * 60 * 60 * 1000;
+    });
+    prog['slow_burn'] = hasSlowBurnLive ? 1 : 0;
+
+    const dayCountsLive: { [dayKey: string]: number } = {};
+    const weekendCountsLive: { [wKey: string]: number } = {};
+    readBooks.forEach(b => {
+      const d = getBookDate(b);
+      const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      dayCountsLive[dayKey] = (dayCountsLive[dayKey] || 0) + 1;
+
+      const wKey = getWeekendKey(d);
+      if (wKey) {
+        weekendCountsLive[wKey] = (weekendCountsLive[wKey] || 0) + 1;
+      }
+    });
+    prog['double_feature_day'] = Math.min(Math.max(...Object.values(dayCountsLive), 0), 2);
+    prog['weekend_binge'] = Math.min(Math.max(...Object.values(weekendCountsLive), 0), 2);
+
+    // Seasons & Calendar
+    prog['new_year_pages'] = readBooks.some(b => getBookDate(b).getMonth() === 0) ? 1 : 0;
+    prog['four_seasons'] = Math.min(new Set(readBooks.map(b => getSeason(getBookDate(b).getMonth()))).size, 4);
+    prog['holiday_reader'] = readBooks.some(b => {
+      const d = getBookDate(b);
+      const m = d.getMonth();
+      const day = d.getDate();
+      return m === 11 && day >= 24 && day <= 31;
+    }) ? 1 : 0;
+
+    // App power-user
+    prog['vault_keeper'] = (userDocData?.appLockPin || userDocData?.biometricEnabled || userDocData?.hasPin || hasLocalPinState) ? 1 : 0;
+    prog['proud_reader'] = (unlockedData['proud_reader'] || userDocData?.sharedCard) ? 1 : 0;
 
     // perfect balance
     const toReadC = allBooks.filter(b => b.status === 'toread').length;
@@ -697,7 +1037,7 @@ export default function AchievementsScreen() {
     prog['eclectic_reader'] = Math.min(uniqueGenresCount, 10);
 
     return prog;
-  }, [allBooks, notesCount, yearlyGoal]);
+  }, [allBooks, notesCount, notesList, yearlyGoal, userDocData, hasLocalPinState, unlockedData]);
 
   const achievements: Achievement[] = ACHIEVEMENT_DEFINITIONS
     .filter(def => def.id !== 'godmode' || isGodModeUser)
