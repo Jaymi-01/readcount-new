@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { AppState, AppStateStatus, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -192,6 +192,12 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await savePinLocally(pin);
     if (user) {
       await updateDoc(doc(db, 'users', user.uid), { appLockPin: pin });
+      const achRef = doc(db, 'users', user.uid, 'achievements', 'vault_keeper');
+      getDoc(achRef).then(async (snap) => {
+        if (!snap.exists()) {
+          await setDoc(achRef, { unlocked: true, unlockedAt: Timestamp.now() });
+        }
+      }).catch(() => {});
     }
     setHasPin(true);
     setIsLocked(false); 
@@ -221,6 +227,14 @@ export const LockProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await AsyncStorage.setItem(ASYNC_STORAGE_BIOMETRIC_KEY, enabled.toString());
     if (user) {
       await updateDoc(doc(db, 'users', user.uid), { biometricEnabled: enabled });
+      if (enabled) {
+        const achRef = doc(db, 'users', user.uid, 'achievements', 'vault_keeper');
+        getDoc(achRef).then(async (snap) => {
+          if (!snap.exists()) {
+            await setDoc(achRef, { unlocked: true, unlockedAt: Timestamp.now() });
+          }
+        }).catch(() => {});
+      }
     }
   };
 
