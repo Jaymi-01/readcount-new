@@ -15,6 +15,8 @@ import { COLORS, darkColors } from '../../constants/colors';
 import { useLock } from '../../context/LockContext';
 import { useTheme } from '../../context/ThemeContext';
 import { auth, db } from '../../firebaseConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { extractUpdateMessage } from '../../utils/updates';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const FULL_MONTH_NAMES = [
@@ -61,9 +63,21 @@ export default function SettingsScreen() {
     try {
       const update = await Updates.checkForUpdateAsync();
       if (update.isAvailable) {
-        Toast.show({ type: 'info', text1: 'Update Found', text2: 'Downloading new features...' });
+        const msg = extractUpdateMessage(update.manifest);
+        if (msg) {
+          await AsyncStorage.setItem('pending_update_message', msg);
+        }
+        Toast.show({ 
+          type: 'info', 
+          text1: 'Update Found', 
+          text2: msg ? `New: "${msg}"` : 'Downloading new features...' 
+        });
         await Updates.fetchUpdateAsync();
-        Toast.show({ type: 'success', text1: 'Updated Successfully', text2: 'Restarting app to apply...' });
+        Toast.show({ 
+          type: 'success', 
+          text1: 'Updated Successfully', 
+          text2: msg ? `Applied: "${msg}"` : 'Restarting app to apply...' 
+        });
         setTimeout(async () => {
           await Updates.reloadAsync();
         }, 1500);
