@@ -62,7 +62,9 @@
       "router": {},
       "eas": {
         "projectId": "0b6f0b91-e437-4571-902d-808344c56c11"
-      }
+      },
+      "updateMessage": "Fixed the streak date calculation",
+      "message": "Fixed the streak date calculation"
     }
   }
 }

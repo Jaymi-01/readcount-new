@@ -9,6 +9,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "update": "node scripts/update.js",
+    "ota": "node scripts/update.js",
     "eas-build-pre-install": "node -e \"if (process.env.GOOGLE_SERVICES_BASE64) { require('fs').writeFileSync('google-services.json', Buffer.from(process.env.GOOGLE_SERVICES_BASE64, 'base64')) }\""
   },
   "dependencies": {

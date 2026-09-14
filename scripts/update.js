@@ -5,10 +5,24 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 const args = process.argv.slice(2);
+
+// Check if user is requesting help or didn't pass any arguments
+if (args.length === 0 || args.includes('--help') || args.includes('-h')) {
+  console.log('\n📖 Read Count OTA Update Publisher\n');
+  console.log('Usage:');
+  console.log('  pnpm ota "Your update message here"');
+  console.log('  pnpm ota "Your update message here" [branch]');
+  console.log('  pnpm run update "Your update message here"\n');
+  console.log('Examples:');
+  console.log('  pnpm ota "Fixed the streak date calculation"');
+  console.log('  pnpm ota "Major performance boost" production\n');
+  process.exit(0);
+}
+
 let message = '';
 let branch = 'preview';
 
-// Parse arguments: e.g. npm run update "My message" [branch]
+// Parse arguments: e.g. pnpm ota "My message" [branch]
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
   if (arg === '--branch' || arg === '-b') {
@@ -32,11 +46,11 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
-if (!message) {
-  console.error('\n❌ Please provide an update message!\n');
+if (!message || message.startsWith('-')) {
+  console.error('\n❌ Please provide a valid update message!\n');
   console.log('Usage:');
-  console.log('  npm run update "Your update message here"');
-  console.log('  npm run update "Your update message here" preview\n');
+  console.log('  pnpm ota "Your update message here"');
+  console.log('  pnpm ota "Your update message here" preview\n');
   process.exit(1);
 }
 
@@ -91,9 +105,10 @@ process.env.EAS_UPDATE_MESSAGE = message;
 console.log(`\n🚀 Publishing update with EAS CLI...\n`);
 
 const easArgs = ['eas-cli', 'update', '--branch', branch, '--message', message];
-const child = spawn('npx', easArgs, {
+const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const child = spawn(npxCmd, easArgs, {
   stdio: 'inherit',
-  shell: true,
+  shell: false,
   env: {
     ...process.env,
     UPDATE_MESSAGE: message,
