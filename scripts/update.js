@@ -104,11 +104,11 @@ process.env.EAS_UPDATE_MESSAGE = message;
 
 console.log(`\n🚀 Publishing update with EAS CLI...\n`);
 
-const easArgs = ['eas-cli', 'update', '--branch', branch, '--message', message];
-const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const child = spawn(npxCmd, easArgs, {
+const safeMessage = message.replace(/"/g, '\\"');
+const cmd = `npx eas-cli update --branch ${branch} --message "${safeMessage}"`;
+const child = spawn(cmd, {
   stdio: 'inherit',
-  shell: false,
+  shell: true,
   env: {
     ...process.env,
     UPDATE_MESSAGE: message,
