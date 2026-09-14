@@ -8,6 +8,7 @@ import * as Updates from 'expo-updates';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { extractUpdateMessage } from '../utils/updates';
 
 export default function RootLayout() {
   const { currentlyRunning } = Updates.useUpdates();
@@ -23,9 +24,14 @@ export default function RootLayout() {
 
         // If we have a currentUpdateId and it's different from the last one we notified about
         if (currentUpdateId && lastUpdateId && currentUpdateId !== lastUpdateId) {
-          // Get the message from the manifest (this is what you type in 'eas update --message "..."')
-          const manifest: any = currentlyRunning.manifest;
-          const updateMessage = manifest?.metadata?.message || "New improvements and bug fixes!";
+          let updateMessage = await AsyncStorage.getItem('pending_update_message');
+          if (updateMessage) {
+            await AsyncStorage.removeItem('pending_update_message');
+          } else {
+            const manifest: any = currentlyRunning.manifest;
+            const rawManifest: any = (currentlyRunning as any)?.rawManifest;
+            updateMessage = extractUpdateMessage(manifest) || extractUpdateMessage(rawManifest) || "New improvements and bug fixes!";
+          }
 
           Toast.show({
             type: 'success',
@@ -51,8 +57,12 @@ export default function RootLayout() {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
         if (!__DEV__) {
-          Updates.checkForUpdateAsync().then((result) => {
+          Updates.checkForUpdateAsync().then(async (result) => {
             if (result.isAvailable) {
+              const msg = extractUpdateMessage(result.manifest);
+              if (msg) {
+                await AsyncStorage.setItem('pending_update_message', msg);
+              }
               // This downloads the update in the background
               Updates.fetchUpdateAsync();
             }
