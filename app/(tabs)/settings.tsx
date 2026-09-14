@@ -3,7 +3,10 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import * as Updates from 'expo-updates';
 import { deleteUser, onAuthStateChanged, signOut, updateProfile, User } from 'firebase/auth';
-import { addDoc, collection, deleteDoc, doc, getDoc, Timestamp, updateDoc } from 'firebase/firestore';
+import { 
+  addDoc, collection, deleteDoc, doc, getDoc, Timestamp, updateDoc,
+  query, where, onSnapshot 
+} from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -12,6 +15,12 @@ import { COLORS, darkColors } from '../../constants/colors';
 import { useLock } from '../../context/LockContext';
 import { useTheme } from '../../context/ThemeContext';
 import { auth, db } from '../../firebaseConfig';
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const FULL_MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -66,6 +75,63 @@ export default function SettingsScreen() {
       Toast.show({ type: 'error', text1: 'Check Failed', text2: 'Could not connect to update server.' });
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // Admin Backdate Date State (Exclusive to millerjoel7597@gmail.com)
+  const isOwner = user?.email?.toLowerCase() === 'millerjoel7597@gmail.com';
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [userBooks, setUserBooks] = useState<any[]>([]);
+  const [selectedBookForDate, setSelectedBookForDate] = useState<any | null>(null);
+  const [bookSearchText, setBookSearchText] = useState('');
+  const [backdateYear, setBackdateYear] = useState(new Date().getFullYear());
+  const [backdateMonth, setBackdateMonth] = useState(0); // 0 = January
+  const [backdateDay, setBackdateDay] = useState(15);
+  const [isBackdating, setIsBackdating] = useState(false);
+
+  useEffect(() => {
+    if (!user || !isOwner) {
+      setUserBooks([]);
+      return;
+    }
+    const q = query(collection(db, 'books'), where('userId', '==', user.uid));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const bks = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      setUserBooks(bks);
+    });
+    return unsub;
+  }, [user, isOwner]);
+
+  const handleApplyBackdate = async () => {
+    if (!selectedBookForDate) {
+      Toast.show({ type: 'error', text1: 'Please select a book first' });
+      return;
+    }
+    setIsBackdating(true);
+    try {
+      const targetDate = new Date(backdateYear, backdateMonth, backdateDay, 12, 0, 0);
+      const targetTimestamp = Timestamp.fromDate(targetDate);
+
+      await updateDoc(doc(db, 'books', selectedBookForDate.id), {
+        status: 'read',
+        dateFinished: targetTimestamp,
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Toast.show({
+        type: 'success',
+        text1: 'Book Updated!',
+        text2: `Marked "${selectedBookForDate.title}" read in ${FULL_MONTH_NAMES[backdateMonth]} ${backdateYear}.`,
+      });
+      setShowDateModal(false);
+      setSelectedBookForDate(null);
+    } catch (e: any) {
+      Toast.show({ type: 'error', text1: 'Update failed', text2: e.message });
+    } finally {
+      setIsBackdating(false);
     }
   };
 
@@ -348,6 +414,35 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {isOwner && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.primary }]}>ADMIN / TIMELINE TOOLS</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.primary + '60' }]}>
+            <TouchableOpacity 
+              style={styles.row} 
+              onPress={() => {
+                setSelectedBookForDate(null);
+                setBookSearchText('');
+                setBackdateYear(new Date().getFullYear());
+                setBackdateMonth(0); // Jan
+                setBackdateDay(15);
+                setShowDateModal(true);
+              }}
+            >
+              <View style={styles.rowTextContainer}>
+                <Text style={[styles.label, { color: colors.textDark }]} numberOfLines={1}>
+                  Backdate Book Finished Date
+                </Text>
+                <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>
+                  Manually set a book to 'read' for any month
+                </Text>
+              </View>
+              <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.textLight }]}>ACCOUNT</Text>
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -458,7 +553,177 @@ export default function SettingsScreen() {
 
       <Modal visible={showDeleteModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}><View style={styles.modalHeader}><Text style={[styles.modalTitle, { color: colors.danger }]}>Delete Account?</Text><TouchableOpacity onPress={() => setShowDeleteModal(false)}><Ionicons name="close" size={24} color={colors.textDark} /></TouchableOpacity></View><Text style={{ color: colors.textLight, textAlign: 'center', marginBottom: 24 }}>This is permanent. All library data will be lost forever.</Text><View style={{ flexDirection: 'row', gap: 12, width: '100%' }}><TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]} onPress={() => setShowDeleteModal(false)}><Text style={{ color: colors.textDark, fontWeight: 'bold' }}>Cancel</Text></TouchableOpacity><TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: colors.danger }]} onPress={handleDeleteAccount}>{modalLoading ? <ActivityIndicator color="white" /> : <Text style={{ color: 'white', fontWeight: 'bold' }}>Delete</Text>}</TouchableOpacity></View></View></View>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.danger }]}>Delete Account?</Text>
+              <TouchableOpacity onPress={() => setShowDeleteModal(false)}>
+                <Ionicons name="close" size={24} color={colors.textDark} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ color: colors.textLight, textAlign: 'center', marginBottom: 24 }}>
+              This is permanent. All library data will be lost forever.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+              <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border }]} onPress={() => setShowDeleteModal(false)}>
+                <Text style={{ color: colors.textDark, fontWeight: 'bold' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.saveBtn, { flex: 1, backgroundColor: colors.danger }]} onPress={handleDeleteAccount}>
+                {modalLoading ? <ActivityIndicator color="white" /> : <Text style={{ color: 'white', fontWeight: 'bold' }}>Delete</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* BACKDATE FINISHED DATE MODAL (ADMIN ONLY) */}
+      <Modal visible={showDateModal} transparent animationType="slide" onRequestClose={() => setShowDateModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.dateModalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={[styles.modalTitle, { color: colors.textDark }]}>Backdate Book</Text>
+                <Text style={{ color: colors.textLight, fontSize: 12, marginTop: 2 }}>
+                  Set a book as finished in any past month
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowDateModal(false)}>
+                <Ionicons name="close" size={24} color={colors.textDark} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ width: '100%', maxHeight: 440 }} showsVerticalScrollIndicator={false}>
+              {/* BOOK SELECTION */}
+              <Text style={[styles.adminSubheader, { color: colors.textDark }]}>1. SELECT BOOK</Text>
+              {selectedBookForDate ? (
+                <View style={[styles.selectedBookCard, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.selectedBookTitle, { color: colors.textDark }]} numberOfLines={1}>
+                      {selectedBookForDate.title}
+                    </Text>
+                    <Text style={[styles.selectedBookAuthor, { color: colors.textLight }]} numberOfLines={1}>
+                      {selectedBookForDate.author || 'Unknown author'} • Currently: {selectedBookForDate.status}
+                    </Text>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => setSelectedBookForDate(null)}
+                    style={[styles.changeBookBtn, { backgroundColor: colors.card }]}
+                  >
+                    <Text style={[styles.changeBookText, { color: colors.primary }]}>Change</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View>
+                  <View style={[styles.pickerSearchBar, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                    <Ionicons name="search" size={16} color={colors.textLight} />
+                    <TextInput 
+                      placeholder="Search books..."
+                      placeholderTextColor={colors.textLight}
+                      style={[styles.pickerSearchInput, { color: colors.textDark }]}
+                      value={bookSearchText}
+                      onChangeText={setBookSearchText}
+                    />
+                  </View>
+                  <ScrollView style={{ maxHeight: 150 }} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                    {userBooks
+                      .filter(b => b.title?.toLowerCase().includes(bookSearchText.toLowerCase()) || b.author?.toLowerCase().includes(bookSearchText.toLowerCase()))
+                      .map(b => (
+                        <TouchableOpacity 
+                          key={b.id} 
+                          style={[styles.bookOptionRow, { borderBottomColor: colors.border + '30' }]}
+                          onPress={() => setSelectedBookForDate(b)}
+                        >
+                          <Ionicons name="book-outline" size={16} color={colors.primary} />
+                          <View style={{ flex: 1, marginLeft: 8 }}>
+                            <Text style={[styles.bookOptionTitle, { color: colors.textDark }]} numberOfLines={1}>{b.title}</Text>
+                            <Text style={[styles.bookOptionAuthor, { color: colors.textLight }]} numberOfLines={1}>
+                              {b.author || 'Unknown author'} ({b.status})
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* YEAR SELECTION */}
+              <Text style={[styles.adminSubheader, { color: colors.textDark, marginTop: 16 }]}>2. YEAR</Text>
+              <View style={styles.yearRow}>
+                {[2024, 2025, 2026, 2027].map(yr => (
+                  <TouchableOpacity 
+                    key={yr} 
+                    onPress={() => setBackdateYear(yr)}
+                    style={[
+                      styles.yearBtn, 
+                      { borderColor: colors.border },
+                      backdateYear === yr && { backgroundColor: colors.primary, borderColor: colors.primary }
+                    ]}
+                  >
+                    <Text style={[styles.yearBtnText, { color: backdateYear === yr ? 'white' : colors.textDark }]}>
+                      {yr}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* MONTH SELECTION */}
+              <Text style={[styles.adminSubheader, { color: colors.textDark, marginTop: 16 }]}>3. MONTH</Text>
+              <View style={styles.monthGrid}>
+                {MONTH_NAMES.map((m, idx) => (
+                  <TouchableOpacity 
+                    key={m} 
+                    onPress={() => setBackdateMonth(idx)}
+                    style={[
+                      styles.monthGridBtn, 
+                      { borderColor: colors.border },
+                      backdateMonth === idx && { backgroundColor: colors.primary, borderColor: colors.primary }
+                    ]}
+                  >
+                    <Text style={[styles.monthGridText, { color: backdateMonth === idx ? 'white' : colors.textDark }]}>
+                      {m}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* DAY SELECTION */}
+              <Text style={[styles.adminSubheader, { color: colors.textDark, marginTop: 16 }]}>4. DAY OF MONTH</Text>
+              <View style={styles.dayRow}>
+                {[1, 15, 28].map(d => (
+                  <TouchableOpacity 
+                    key={d} 
+                    onPress={() => setBackdateDay(d)}
+                    style={[
+                      styles.dayBtn, 
+                      { borderColor: colors.border },
+                      backdateDay === d && { backgroundColor: colors.primary, borderColor: colors.primary }
+                    ]}
+                  >
+                    <Text style={[styles.dayBtnText, { color: backdateDay === d ? 'white' : colors.textDark }]}>
+                      {d === 1 ? '1st' : d === 15 ? '15th' : '28th'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity 
+              style={[
+                styles.saveBtn, 
+                { backgroundColor: selectedBookForDate ? colors.primary : colors.border, marginTop: 16 }
+              ]} 
+              onPress={handleApplyBackdate}
+              disabled={!selectedBookForDate || isBackdating}
+            >
+              {isBackdating ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text style={styles.saveBtnText}>
+                  Set to Read in {FULL_MONTH_NAMES[backdateMonth]} {backdateYear}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </ScrollView>
     </View>
@@ -496,4 +761,119 @@ const styles = StyleSheet.create({
   keyText: { fontSize: 24, fontWeight: '600' },
   timeoutOption: { width: '100%', padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   timeoutLabel: { fontSize: 16 },
+
+  // Admin Backdate Modal Styles
+  dateModalContent: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 28,
+    padding: 24,
+    elevation: 10,
+  },
+  adminSubheader: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  selectedBookCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  selectedBookTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  selectedBookAuthor: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  changeBookBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  changeBookText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  pickerSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  pickerSearchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  bookOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  bookOptionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  bookOptionAuthor: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  yearRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  yearBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  yearBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  monthGridBtn: {
+    width: '22%',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  monthGridText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  dayRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dayBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  dayBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
 });
