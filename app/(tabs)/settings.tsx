@@ -448,7 +448,7 @@ export default function SettingsScreen() {
                   Backdate Book Finished Date
                 </Text>
                 <Text style={[styles.value, { color: colors.textLight }]} numberOfLines={1}>
-                  Manually set a book to 'read' for any month
+                  {"Manually set a book to 'read' for any month"}
                 </Text>
               </View>
               <Ionicons name="calendar-outline" size={20} color={colors.primary} />
