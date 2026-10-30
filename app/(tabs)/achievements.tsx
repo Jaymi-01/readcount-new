@@ -14,6 +14,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const IS_TABLET = SCREEN_WIDTH >= 768;
+const ACHIEVEMENTS_MAX_WIDTH = 960;
+const NUM_TROPHY_COLUMNS = SCREEN_WIDTH >= 1024 ? 6 : (IS_TABLET ? 5 : 3);
+const HORIZONTAL_PADDING = IS_TABLET ? 32 : 16;
+const CONTENT_WIDTH = Math.min(SCREEN_WIDTH, ACHIEVEMENTS_MAX_WIDTH);
+const TROPHY_ITEM_WIDTH = (CONTENT_WIDTH - (HORIZONTAL_PADDING * 2)) / NUM_TROPHY_COLUMNS;
 
 function toValidDate(date: any): Date {
   if (!date) return new Date();
@@ -1100,19 +1106,25 @@ export default function AchievementsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
-  scrollContent: { padding: 16, paddingBottom: 180 },
-  header: { padding: 24, paddingBottom: 32 },
+  scrollContent: { 
+    paddingHorizontal: HORIZONTAL_PADDING, 
+    paddingBottom: 180,
+    maxWidth: IS_TABLET ? ACHIEVEMENTS_MAX_WIDTH : undefined,
+    alignSelf: IS_TABLET ? 'center' : undefined,
+    width: '100%',
+  },
+  header: { paddingHorizontal: IS_TABLET ? 12 : 24, paddingBottom: 32 },
   headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
   headerSubtitle: { fontSize: 12, fontWeight: '800', marginTop: 8, letterSpacing: 1, textTransform: 'uppercase', opacity: 0.5 },
   categorySection: { marginBottom: 32 },
   categoryTitle: { fontSize: 12, fontWeight: '900', letterSpacing: 1.5, marginBottom: 16, marginLeft: 8 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start' },
-  trophyItem: { width: (SCREEN_WIDTH - 32) / 3, alignItems: 'center', marginBottom: 24, paddingHorizontal: 4 },
-  trophyCircle: { width: 75, height: 75, borderRadius: 38, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginBottom: 8, elevation: 4, shadowOffset: { width: 0, height: 0 }, shadowRadius: 10, shadowOpacity: 0.1 },
+  trophyItem: { width: TROPHY_ITEM_WIDTH, alignItems: 'center', marginBottom: 24, paddingHorizontal: 4 },
+  trophyCircle: { width: IS_TABLET ? 82 : 75, height: IS_TABLET ? 82 : 75, borderRadius: IS_TABLET ? 41 : 38, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginBottom: 8, elevation: 4, shadowOffset: { width: 0, height: 0 }, shadowRadius: 10, shadowOpacity: 0.1 },
   miniBadge: { position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
   streakBadge: { position: 'absolute', top: -5, right: -5, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF', zIndex: 10 },
   streakText: { color: 'white', fontSize: 10, fontWeight: '900' },
-  trophyLabel: { fontSize: 11, fontWeight: 'bold', textAlign: 'center', lineHeight: 14, textTransform: 'uppercase' },
+  trophyLabel: { fontSize: IS_TABLET ? 11.5 : 11, fontWeight: 'bold', textAlign: 'center', lineHeight: 14, textTransform: 'uppercase' },
   progressCount: { fontSize: 10, fontWeight: '900', marginTop: 2, opacity: 0.6 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
   modalContent: { width: '100%', maxWidth: 400, borderRadius: 28, padding: 32, alignItems: 'center', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20 },
