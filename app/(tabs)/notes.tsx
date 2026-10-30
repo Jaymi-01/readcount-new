@@ -19,6 +19,12 @@ import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 import { DoodleBackground } from '../../components/DoodleBackground';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const IS_TABLET = SCREEN_WIDTH >= 768;
+const NUM_COLUMNS = SCREEN_WIDTH >= 1024 ? 4 : (IS_TABLET ? 3 : 2);
+const HORIZONTAL_PADDING = IS_TABLET ? 32 : 16;
+const GAP = 16;
+const TOTAL_GAP = GAP * (NUM_COLUMNS - 1);
+const NOTE_WIDTH = (SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - TOTAL_GAP) / NUM_COLUMNS;
 
 interface Note {
   id: string;
@@ -480,13 +486,14 @@ export default function NotesScreen() {
         <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 50 }} />
       ) : (
         <FlatList 
+          key={`notes-list-${NUM_COLUMNS}`}
           data={filteredNotes} 
           renderItem={renderNoteItem} 
           keyExtractor={item => item.id}
           style={{ flex: 1 }}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          numColumns={2}
+          numColumns={NUM_COLUMNS}
           columnWrapperStyle={styles.columnWrapper}
           ListEmptyComponent={
             <View style={styles.emptyState}>
@@ -532,22 +539,22 @@ export default function NotesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: 24, paddingTop: Platform.OS === 'android' ? 40 : 20, marginBottom: 20 },
+  header: { paddingHorizontal: HORIZONTAL_PADDING, paddingTop: Platform.OS === 'android' ? 40 : 20, marginBottom: 20 },
   headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
   headerSubtitle: { fontSize: 14, fontWeight: '700', marginTop: 4, opacity: 0.6 },
-  searchSection: { paddingHorizontal: 24, marginBottom: 16 },
+  searchSection: { paddingHorizontal: HORIZONTAL_PADDING, marginBottom: 16 },
   searchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: 44, borderRadius: 12, borderWidth: 1 },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14, fontWeight: '600' },
-  listContent: { paddingHorizontal: 16, paddingBottom: 180 },
-  columnWrapper: { justifyContent: 'space-between', marginBottom: 16 },
-  noteWrapper: { width: (SCREEN_WIDTH - 48) / 2 },
+  listContent: { paddingHorizontal: HORIZONTAL_PADDING, paddingBottom: 180 },
+  columnWrapper: { justifyContent: 'flex-start', gap: GAP, marginBottom: 16 },
+  noteWrapper: { width: NOTE_WIDTH },
   noteCard: { padding: 16, borderRadius: 20, borderWidth: 1, minHeight: 120, justifyContent: 'space-between' },
   noteTitle: { fontSize: 16, fontWeight: '900', marginBottom: 6 },
   noteContent: { fontSize: 13, lineHeight: 18, opacity: 0.8 },
   noteFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
   noteDate: { fontSize: 10, fontWeight: '800', opacity: 0.5 },
   deleteBtn: { padding: 4 },
-  emptyState: { alignItems: 'center', marginTop: 100, width: SCREEN_WIDTH - 32 },
+  emptyState: { alignItems: 'center', marginTop: 100, width: '100%' },
   emptyText: { marginTop: 16, fontSize: 16, fontWeight: '600' },
   fab: { position: 'absolute', bottom: 100, right: 24, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6 },
   
@@ -575,7 +582,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 10,
-    marginHorizontal: 24,
+    marginHorizontal: HORIZONTAL_PADDING,
     marginBottom: 14,
     borderRadius: 14,
     borderWidth: 1,
@@ -621,7 +628,14 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   doneBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
   doneBtnText: { fontSize: 15, fontWeight: '900' },
-  editorScroll: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 100 },
+  editorScroll: { 
+    paddingHorizontal: 24, 
+    paddingTop: 12, 
+    paddingBottom: 100,
+    maxWidth: IS_TABLET ? 840 : undefined,
+    alignSelf: IS_TABLET ? 'center' : undefined,
+    width: '100%',
+  },
   bookPickerTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
