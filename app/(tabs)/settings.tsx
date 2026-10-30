@@ -8,7 +8,7 @@ import {
   query, where, onSnapshot 
 } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Modal, Platform, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { DoodleBackground } from '../../components/DoodleBackground';
 import { COLORS, darkColors } from '../../constants/colors';
@@ -17,6 +17,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { auth, db } from '../../firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { extractUpdateMessage } from '../../utils/updates';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const IS_TABLET = SCREEN_WIDTH >= 768;
+const SETTINGS_MAX_WIDTH = 760;
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const FULL_MONTH_NAMES = [
@@ -746,8 +750,13 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { paddingBottom: 120 },
-  header: { padding: 24, paddingTop: Platform.OS === 'android' ? 60 : 40 },
+  scrollContent: { 
+    paddingBottom: 180,
+    maxWidth: IS_TABLET ? SETTINGS_MAX_WIDTH : undefined,
+    alignSelf: IS_TABLET ? 'center' : undefined,
+    width: '100%',
+  },
+  header: { paddingHorizontal: IS_TABLET ? 20 : 24, paddingTop: Platform.OS === 'android' ? 60 : 40, paddingBottom: 12 },
   headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
   section: { marginBottom: 32, paddingHorizontal: 20 },
   sectionTitle: { fontSize: 12, fontWeight: '900', letterSpacing: 1.5, marginBottom: 12, marginLeft: 8, opacity: 0.5 },
