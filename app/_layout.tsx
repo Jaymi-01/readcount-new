@@ -107,12 +107,12 @@ export default function RootLayout() {
         // 2. Request Permissions
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
         let finalStatus = existingStatus;
-        
+
         if (existingStatus !== 'granted') {
           const { status } = await Notifications.requestPermissionsAsync();
           finalStatus = status;
         }
-
+        
         if (finalStatus !== 'granted') return;
 
         // 3. Schedule the Yearly Wrapped Notification
