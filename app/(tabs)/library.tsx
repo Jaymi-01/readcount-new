@@ -21,10 +21,10 @@ import { DoodleBackground } from '../../components/DoodleBackground';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const IS_TABLET = SCREEN_WIDTH >= 768;
-const NUM_COLUMNS = IS_TABLET ? 4 : 2;
+const NUM_COLUMNS = SCREEN_WIDTH >= 1024 ? 5 : (IS_TABLET ? 4 : 2);
 const GAP = 16;
 const TOTAL_GAP = GAP * (NUM_COLUMNS - 1);
-const HORIZONTAL_PADDING = IS_TABLET ? 40 : 24;
+const HORIZONTAL_PADDING = IS_TABLET ? 32 : 24;
 const COLUMN_WIDTH = (SCREEN_WIDTH - (HORIZONTAL_PADDING * 2) - TOTAL_GAP) / NUM_COLUMNS;
 
 const capitalize = (str?: string) => {
@@ -566,7 +566,7 @@ export default function LibraryScreen() {
                 renderItem={renderBookItem} 
                 keyExtractor={item => item.id} 
                 numColumns={NUM_COLUMNS} 
-                contentContainerStyle={[styles.listContent, IS_TABLET && { paddingHorizontal: 24 }]} 
+                contentContainerStyle={styles.listContent} 
                 columnWrapperStyle={styles.columnWrapper} 
                 showsVerticalScrollIndicator={false} 
                 style={{ flex: 1 }}
@@ -819,7 +819,7 @@ export default function LibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: Platform.OS === 'android' ? 40 : 20, marginBottom: 12 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: HORIZONTAL_PADDING, paddingTop: Platform.OS === 'android' ? 40 : 20, marginBottom: 12 },
   greeting: { fontSize: 14, fontWeight: '600' },
   username: { fontSize: 24, fontWeight: '900' },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
@@ -831,10 +831,10 @@ const styles = StyleSheet.create({
   genreOption: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, borderWidth: 1, marginRight: 8, height: 40, justifyContent: 'center' },
   genreOptionText: { fontSize: 13, fontWeight: '800' },
   fab: { position: 'absolute', bottom: 100, right: 24, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 6, zIndex: 100 },
-  searchSection: { paddingHorizontal: 24, marginBottom: 16 },
+  searchSection: { paddingHorizontal: HORIZONTAL_PADDING, marginBottom: 16 },
   searchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: 44, borderRadius: 12, borderWidth: 1 },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14, fontWeight: '600' },
-  filterTabs: { flexDirection: 'row', paddingHorizontal: 24, marginBottom: 16, gap: 20 },
+  filterTabs: { flexDirection: 'row', paddingHorizontal: HORIZONTAL_PADDING, marginBottom: 16, gap: 20 },
   tab: { paddingVertical: 8 },
   tabText: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
   listContent: { paddingHorizontal: HORIZONTAL_PADDING, paddingBottom: 180 },
@@ -855,7 +855,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', marginTop: 100 },
   emptyText: { marginTop: 16, fontSize: 16, fontWeight: '600' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalContent: { width: '100%', maxWidth: 400, maxHeight: '85%', borderRadius: 28, padding: 24, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20 },
+  modalContent: { width: '100%', maxWidth: 460, maxHeight: '85%', borderRadius: 28, padding: 24, elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, width: '100%' },
   modalTitle: { fontSize: 24, fontWeight: '900' },
   apiSearchContainer: { marginBottom: 8 },
