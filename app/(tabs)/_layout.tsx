@@ -1,46 +1,94 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Tabs, usePathname } from 'expo-router';
 import React from 'react';
-import { Platform, View, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { Platform, View, StyleSheet, Dimensions, Text } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { COLORS, darkColors } from '../../constants/colors';
 import { useTheme } from '../../context/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const IS_TABLET = SCREEN_WIDTH >= 768;
 
-const CustomTabBarButton = ({ children, onPress, colors, focused }: { children: any, onPress?: any, colors: any, focused?: boolean }) => (
-  <View style={styles.tabButtonWrapper}>
-    <TouchableOpacity
+// Glassmorphic rounded-square tab tile containing both icon and label with vibrant active state
+const GlassTabBox = ({
+  focused,
+  iconName,
+  label,
+  colors,
+  theme,
+  isMiddle = false,
+}: {
+  focused: boolean;
+  iconName: any;
+  label: string;
+  colors: any;
+  theme: string;
+  isMiddle?: boolean;
+}) => {
+  const isDark = theme === 'dark';
+
+  const width = IS_TABLET ? 116 : 62;
+  const height = IS_TABLET ? 66 : 54;
+  const radius = IS_TABLET ? 18 : 14;
+  const iconSize = IS_TABLET ? 24 : 19;
+
+  return (
+    <View
       style={[
-        styles.middleButtonContainer,
+        styles.glassIconWrapper,
         {
-          backgroundColor: colors.card,
-          borderColor: colors.border,
-          width: IS_TABLET ? 90 : 70,
-          height: IS_TABLET ? 90 : 70,
-          borderRadius: IS_TABLET ? 45 : 35,
-          top: IS_TABLET ? -35 : -32,
-          elevation: IS_TABLET ? 15 : 10,
-          shadowOpacity: IS_TABLET ? 0.3 : 0.2,
-        }
+          width,
+          height,
+          borderRadius: radius,
+        },
       ]}
-      activeOpacity={0.8}
-      onPress={onPress}
     >
-      <View style={[
-        styles.innerButton,
-        focused && { backgroundColor: colors.primary + '15' },
-        { borderRadius: IS_TABLET ? 45 : 35 }
-      ]}>
-        {children}
-      </View>
-    </TouchableOpacity>
-  </View>
-);
+      <BlurView
+        intensity={Platform.OS === 'ios' ? (isDark ? 55 : 80) : 60}
+        tint={isDark ? 'dark' : 'light'}
+        style={[
+          styles.glassBoxBlur,
+          {
+            borderRadius: radius,
+            backgroundColor: isDark
+              ? (focused ? colors.primary + '40' : 'rgba(30, 30, 30, 0.7)')
+              : (focused ? colors.primary + '25' : 'rgba(255, 255, 255, 0.7)'),
+            borderColor: focused
+              ? colors.primary
+              : (isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.85)'),
+            borderWidth: focused ? 2 : 1.2,
+            paddingHorizontal: IS_TABLET ? 8 : 4,
+          },
+        ]}
+      >
+        <Ionicons
+          size={iconSize}
+          name={iconName}
+          color={focused ? colors.primary : colors.textLight}
+        />
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.glassBoxLabel,
+            {
+              color: focused ? colors.primary : colors.textLight,
+              fontSize: IS_TABLET ? 11 : 8.5,
+              fontWeight: focused ? '900' : '700',
+              letterSpacing: IS_TABLET ? 0.6 : 0.3,
+            },
+          ]}
+        >
+          {label}
+        </Text>
+      </BlurView>
+    </View>
+  );
+};
 
 export default function TabLayout() {
   const { theme } = useTheme();
   const colors = theme === 'dark' ? darkColors : COLORS;
+  const pathname = usePathname();
 
   return (
     <View style={{ flex: 1 }}>
@@ -48,28 +96,21 @@ export default function TabLayout() {
         screenOptions={{
           tabBarActiveTintColor: colors.primary,
           tabBarInactiveTintColor: colors.textLight,
+          tabBarShowLabel: false,
+          tabBarBackground: () => null,
           tabBarStyle: {
-            backgroundColor: colors.card,
+            backgroundColor: 'transparent',
             borderTopWidth: 0,
-            height: IS_TABLET ? 80 : (Platform.OS === 'ios' ? 100 : 80),
-            paddingBottom: IS_TABLET ? 10 : (Platform.OS === 'ios' ? 35 : 15),
-            paddingTop: 12,
-            elevation: 25,
-            shadowColor: colors.textDark,
-            shadowOffset: { width: 0, height: -10 },
-            shadowOpacity: 0.1,
-            shadowRadius: 15,
+            borderWidth: 0,
+            height: IS_TABLET ? 96 : (Platform.OS === 'ios' ? 96 : 82),
+            paddingBottom: IS_TABLET ? 20 : (Platform.OS === 'ios' ? 28 : 12),
+            paddingTop: IS_TABLET ? 8 : 6,
+            elevation: 0,
+            shadowOpacity: 0,
             position: 'absolute',
             left: 0,
             right: 0,
             bottom: 0,
-          },
-          tabBarLabelStyle: {
-            fontWeight: '800',
-            fontSize: IS_TABLET ? 12 : 10,
-            textTransform: 'uppercase',
-            letterSpacing: 0.5,
-            marginTop: 4,
           },
           headerShown: false,
         }}>
@@ -77,7 +118,18 @@ export default function TabLayout() {
           name="library"
           options={{
             title: 'Library',
-            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "book" : "book-outline"} color={color} />,
+            tabBarIcon: ({ focused }) => {
+              const isActive = focused || pathname === '/' || pathname === '/library' || pathname.startsWith('/library');
+              return (
+                <GlassTabBox
+                  focused={isActive}
+                  iconName={isActive ? "book" : "book-outline"}
+                  label="Library"
+                  colors={colors}
+                  theme={theme}
+                />
+              );
+            },
           }}
         />
 
@@ -85,7 +137,18 @@ export default function TabLayout() {
           name="notes"
           options={{
             title: 'Notes',
-            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "document-text" : "document-text-outline"} color={color} />,
+            tabBarIcon: ({ focused }) => {
+              const isActive = focused || pathname === '/notes' || pathname.startsWith('/notes');
+              return (
+                <GlassTabBox
+                  focused={isActive}
+                  iconName={isActive ? "document-text" : "document-text-outline"}
+                  label="Notes"
+                  colors={colors}
+                  theme={theme}
+                />
+              );
+            },
           }}
         />
 
@@ -93,16 +156,19 @@ export default function TabLayout() {
           name="stats"
           options={{
             title: 'Stats',
-            tabBarIcon: ({ color, focused }) => (
-              <Ionicons size={36} name={focused ? "stats-chart" : "stats-chart-outline"} color={color} />
-            ),
-            tabBarButton: (props) => (
-              <CustomTabBarButton 
-                {...props} 
-                colors={colors} 
-                focused={props.accessibilityState?.selected}
-              />
-            ),
+            tabBarIcon: ({ focused }) => {
+              const isActive = focused || pathname === '/stats' || pathname.startsWith('/stats');
+              return (
+                <GlassTabBox
+                  focused={isActive}
+                  iconName={isActive ? "stats-chart" : "stats-chart-outline"}
+                  label="Stats"
+                  colors={colors}
+                  theme={theme}
+                  isMiddle={true}
+                />
+              );
+            },
           }}
         />
 
@@ -110,7 +176,18 @@ export default function TabLayout() {
           name="achievements"
           options={{
             title: 'Trophies',
-            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "trophy" : "trophy-outline"} color={color} />,
+            tabBarIcon: ({ focused }) => {
+              const isActive = focused || pathname === '/achievements' || pathname.startsWith('/achievements');
+              return (
+                <GlassTabBox
+                  focused={isActive}
+                  iconName={isActive ? "trophy" : "trophy-outline"}
+                  label="Trophies"
+                  colors={colors}
+                  theme={theme}
+                />
+              );
+            },
           }}
         />
 
@@ -118,7 +195,18 @@ export default function TabLayout() {
           name="settings"
           options={{
             title: 'Settings',
-            tabBarIcon: ({ color, focused }) => <Ionicons size={28} name={focused ? "settings" : "settings-outline"} color={color} />,
+            tabBarIcon: ({ focused }) => {
+              const isActive = focused || pathname === '/settings' || pathname.startsWith('/settings');
+              return (
+                <GlassTabBox
+                  focused={isActive}
+                  iconName={isActive ? "settings" : "settings-outline"}
+                  label="Settings"
+                  colors={colors}
+                  theme={theme}
+                />
+              );
+            },
           }}
         />
 
@@ -130,24 +218,22 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabButtonWrapper: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  middleButtonContainer: {
+  glassIconWrapper: {
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 4,
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
   },
-  innerButton: {
+  glassBoxBlur: {
     width: '100%',
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-  }
+    overflow: 'hidden',
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
+  glassBoxLabel: {
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginTop: 2,
+  },
 });
