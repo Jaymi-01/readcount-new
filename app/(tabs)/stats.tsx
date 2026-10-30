@@ -17,6 +17,13 @@ import Toast from 'react-native-toast-message';
 import { triggerLocalNotification } from '../../utils/notifications';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const IS_TABLET = SCREEN_WIDTH >= 768;
+const STATS_CONTENT_MAX_WIDTH = 840;
+const STATS_HORIZONTAL_PADDING = IS_TABLET ? 32 : 24;
+const DASHBOARD_GAP = IS_TABLET ? 12 : 16;
+const DASHBOARD_CARD_WIDTH = IS_TABLET
+  ? (Math.min(SCREEN_WIDTH, STATS_CONTENT_MAX_WIDTH) - (STATS_HORIZONTAL_PADDING * 2) - (DASHBOARD_GAP * 3)) / 4
+  : (SCREEN_WIDTH - 64) / 2;
 
 // --- WRAPPED ANIMATION SUB-COMPONENTS ---
 
@@ -1136,7 +1143,14 @@ export default function StatsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
-  scrollContent: { padding: 24, paddingBottom: 180 },
+  scrollContent: { 
+    paddingHorizontal: STATS_HORIZONTAL_PADDING, 
+    paddingTop: IS_TABLET ? 20 : 0, 
+    paddingBottom: 180,
+    maxWidth: IS_TABLET ? STATS_CONTENT_MAX_WIDTH : undefined,
+    alignSelf: IS_TABLET ? 'center' : undefined,
+    width: '100%',
+  },
   header: { marginBottom: 24 },
   greetingText: { fontSize: 14, fontWeight: '800', opacity: 0.6, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   headerTitle: { fontSize: 32, fontWeight: '900', letterSpacing: -1, marginBottom: 16 },
@@ -1192,6 +1206,11 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: Platform.OS === 'ios' ? 44 : 28,
     maxHeight: '75%',
+    maxWidth: IS_TABLET ? 540 : '100%',
+    width: '100%',
+    alignSelf: IS_TABLET ? 'center' : 'auto',
+    borderRadius: IS_TABLET ? 28 : undefined,
+    marginBottom: IS_TABLET ? 40 : 0,
   },
   modalHandle: {
     width: 40,
@@ -1288,10 +1307,10 @@ const styles = StyleSheet.create({
   wrappedPromoLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   wrappedPromoTitle: { color: 'white', fontSize: 15, fontWeight: '900' },
   wrappedPromoSubtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 11, fontWeight: '700', marginTop: 2 },
-  dashboardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 24, justifyContent: 'space-between' },
-  dashboardCard: { width: (SCREEN_WIDTH - 64) / 2, padding: 20, borderRadius: 24, borderWidth: 1, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6 },
-  dashboardCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  dashboardCardValue: { fontSize: 22, fontWeight: '900', marginBottom: 4 },
+  dashboardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: DASHBOARD_GAP, marginBottom: 24, justifyContent: 'space-between' },
+  dashboardCard: { width: DASHBOARD_CARD_WIDTH, padding: IS_TABLET ? 16 : 20, borderRadius: 24, borderWidth: 1, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 6 },
+  dashboardCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  dashboardCardValue: { fontSize: IS_TABLET ? 17 : 22, fontWeight: '900', marginBottom: 4 },
   dashboardCardLabel: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
   personaBanner: { flexDirection: 'row', alignItems: 'center', padding: 20, borderRadius: 24, borderWidth: 1, marginBottom: 24 },
   personaIconContainer: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
